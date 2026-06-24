@@ -1,9 +1,8 @@
 <h1 align="center">
   <br>
-  <a href="http://github.com/naomisphere/moonleaf"><img src="https://github.com/user-attachments/assets/68ab0687-88ca-4c1f-9864-ea49480dcd4e" alt="moonleaf" width="150"></a>
+  <a href="https://github.com/naomisphere/moonleaf"><img src="./artwork/png/moonleaf2.png" alt="moonleaf" width="150"></a>
   <br>
   moonleaf
-
   <br>
 </h1>
 <p align="center">

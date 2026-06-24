@@ -186,18 +186,6 @@ struct SettingsView: View {
                 .onChange(of: autoStartEnabled) { newValue in toggleAutoStart(newValue) }
             }
 
-            Section(title: NSLocalizedString("settings_screensaver", comment: "Screensaver")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    SToggle(
-                        title: NSLocalizedString("settings_use_screensaver", comment: "Use as Screensaver") + " (In Maintenance)",
-                        description: NSLocalizedString("settings_use_screensaver_desc", comment: ""),
-                        isOn: .constant(false)
-                    )
-                    .disabled(true)
-                    .opacity(0.6)
-                }
-            }
-
             Section(title: NSLocalizedString("settings_updates", comment: "Updates")) {
                 VStack(spacing: 12) {
                     SToggle(

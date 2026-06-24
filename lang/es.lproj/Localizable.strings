@@ -135,7 +135,7 @@
 "sort_by_size" = "Tamaño de archivo";
 
 "settings_api_key" = "Clave API de Wallhaven";
-"settings_api_key_description" = "Experimental. Quítala si rompe algo.";
+"settings_api_key_description" = "Si tienes una cuenta de WH, puedes usar tu clave de API.";
 "settings_enter_api_key" = "Introduce tu clave de API";
 "settings_save" = "Guardar";
 "settings_cancel" = "Cancelar";

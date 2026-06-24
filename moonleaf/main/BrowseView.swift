@@ -813,6 +813,17 @@ class WHService: ObservableObject {
     @Published var wallpapers: [AnyWallpaper] = []
     private let baseURL = "https://wallhaven.cc/api/v1/search"
     private var currentSeed: String?
+    private var apiKey: String = ""
+    
+    func loadAPIKey() {
+        let keyFile = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/share/macpaper/WH_API_KEY")
+        if FileManager.default.fileExists(atPath: keyFile.path),
+           let key = try? String(contentsOf: keyFile) {
+            apiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+    
     
     func searchWallpapers(
         query: String? = nil,
@@ -844,7 +855,12 @@ class WHService: ObservableObject {
         
         guard let url = components.url else { return }
         
-        URLSession.shared.dataTask(with: url) { data, _, error in
+        var request = URLRequest(url: url)
+        if !apiKey.isEmpty {
+            request.addValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, _, error in
             defer { completion?() }
             
             if let _ = error {
@@ -896,7 +912,12 @@ class WHService: ObservableObject {
         
         guard let url = components.url else { return }
         
-        URLSession.shared.dataTask(with: url) { data, _, error in
+        var request = URLRequest(url: url)
+        if !apiKey.isEmpty {
+            request.addValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, _, error in
             if let _ = error {
                 return
             }

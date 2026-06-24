@@ -38,9 +38,11 @@ struct ManagerView: View {
     @State private var showFavoritesOnly = false
     @State private var showSortDropdown = false
     @State private var showWpActionsDropdown = false
+    @State private var previewWallpaper: endup_wp? = nil
+    @State private var showPreview = false
     private let menuHandler = MenuHandler()
     
-        var body: some View {
+    var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 toolbarView
@@ -61,6 +63,20 @@ struct ManagerView: View {
                 .transition(.opacity)
                 .zIndex(1)
             }
+            
+            if showPreview, let wallpaper = previewWallpaper {
+                QuickPreviewOverlay(
+                    wallpaper: wallpaper,
+                    onClose: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showPreview = false
+                            previewWallpaper = nil
+                        }
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(999)
+            }
         }
         .onAppear {
             service.fetch_wallpapers()
@@ -72,6 +88,7 @@ struct ManagerView: View {
                 overlay_chosen_wp = selected
             }
         }
+
         .fileImporter(
             isPresented: $show_importer,
             allowedContentTypes: importingFolder ? [.folder] : [.movie, .image],
@@ -91,7 +108,8 @@ struct ManagerView: View {
             }
         }
     }
-        private var toolbarView: some View {
+    
+    private var toolbarView: some View {
         HStack(spacing: 12) {
             Button(action: { showAddPopover.toggle() }) {
                 HStack(spacing: 8) {
@@ -309,90 +327,90 @@ struct ManagerView: View {
     }
 
     private func show_settings() {
-    let settingsView = SettingsView()
-        .environmentObject(service)
-    
-    let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 500, height: 500),
-        styleMask: [.titled, .closable, .resizable],
-        backing: .buffered,
-        defer: false
-    )
-    
-    if let managerWindow = NSApp.keyWindow {
-        let managerFrame = managerWindow.frame
-        let settingsSize = window.frame.size
+        let settingsView = SettingsView()
+            .environmentObject(service)
         
-        let x = managerFrame.midX - settingsSize.width / 2
-        let y = managerFrame.midY - settingsSize.height / 2
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 500),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
         
-        window.setFrameOrigin(NSPoint(x: x, y: y))
-    } else {
-        window.center()
+        if let managerWindow = NSApp.keyWindow {
+            let managerFrame = managerWindow.frame
+            let settingsSize = window.frame.size
+            
+            let x = managerFrame.midX - settingsSize.width / 2
+            let y = managerFrame.midY - settingsSize.height / 2
+            
+            window.setFrameOrigin(NSPoint(x: x, y: y))
+        } else {
+            window.center()
+        }
+        
+        window.title = "Settings"
+        window.titleVisibility = .hidden
+        window.contentView = NSHostingView(rootView: settingsView)
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
-    
-    window.title = "Settings"
-    window.titleVisibility = .hidden
-    window.contentView = NSHostingView(rootView: settingsView)
-    window.isReleasedWhenClosed = false
-    window.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
-}
 
     private func showFilterMenu() {
-    let menu = NSMenu()
-    
-    let filterHeader = NSMenuItem(
-        title: NSLocalizedString("show_types", comment: "Show"),
-        action: nil,
-        keyEquivalent: ""
-    )
-    filterHeader.isEnabled = false
-    menu.addItem(filterHeader)
-    
-    let videoItem = NSMenuItem(
-        title: NSLocalizedString("show_videos", comment: "Videos"),
-        action: #selector(MenuHandler.toggleVideos),
-        keyEquivalent: ""
-    )
-    videoItem.target = menuHandler
-    videoItem.state = service.showVideos ? .on : .off
-    menu.addItem(videoItem)
-    
-    let imageItem = NSMenuItem(
-        title: NSLocalizedString("show_images", comment: "Images"),
-        action: #selector(MenuHandler.toggleImages),
-        keyEquivalent: ""
-    )
-    imageItem.target = menuHandler
-    imageItem.state = service.showImages ? .on : .off
-    menu.addItem(imageItem)
-    
-    if let window = NSApp.keyWindow,
-       let contentView = window.contentView {
+        let menu = NSMenu()
         
-        let filterButtonTitle = NSLocalizedString("filter", comment: "Filter")
-        if let filterButton = findButton(with: filterButtonTitle, in: contentView) {
-            let buttonFrame = filterButton.convert(filterButton.bounds, to: nil)
-            let menuPosition = NSPoint(x: buttonFrame.minX, y: buttonFrame.maxY)
-            menu.popUp(positioning: nil, at: menuPosition, in: nil)
-        } else {
-            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        let filterHeader = NSMenuItem(
+            title: NSLocalizedString("show_types", comment: "Show"),
+            action: nil,
+            keyEquivalent: ""
+        )
+        filterHeader.isEnabled = false
+        menu.addItem(filterHeader)
+        
+        let videoItem = NSMenuItem(
+            title: NSLocalizedString("show_videos", comment: "Videos"),
+            action: #selector(MenuHandler.toggleVideos),
+            keyEquivalent: ""
+        )
+        videoItem.target = menuHandler
+        videoItem.state = service.showVideos ? .on : .off
+        menu.addItem(videoItem)
+        
+        let imageItem = NSMenuItem(
+            title: NSLocalizedString("show_images", comment: "Images"),
+            action: #selector(MenuHandler.toggleImages),
+            keyEquivalent: ""
+        )
+        imageItem.target = menuHandler
+        imageItem.state = service.showImages ? .on : .off
+        menu.addItem(imageItem)
+        
+        if let window = NSApp.keyWindow,
+           let contentView = window.contentView {
+            
+            let filterButtonTitle = NSLocalizedString("filter", comment: "Filter")
+            if let filterButton = findButton(with: filterButtonTitle, in: contentView) {
+                let buttonFrame = filterButton.convert(filterButton.bounds, to: nil)
+                let menuPosition = NSPoint(x: buttonFrame.minX, y: buttonFrame.maxY)
+                menu.popUp(positioning: nil, at: menuPosition, in: nil)
+            } else {
+                menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+            }
         }
     }
-}
 
-private func findButton(with title: String, in view: NSView) -> NSButton? {
-    for subview in view.subviews {
-        if let button = subview as? NSButton, button.title == title {
-            return button
+    private func findButton(with title: String, in view: NSView) -> NSButton? {
+        for subview in view.subviews {
+            if let button = subview as? NSButton, button.title == title {
+                return button
+            }
+            if let foundButton = findButton(with: title, in: subview) {
+                return foundButton
+            }
         }
-        if let foundButton = findButton(with: title, in: subview) {
-            return foundButton
-        }
+        return nil
     }
-    return nil
-}
     
     private var contentView: some View {
         VStack(spacing: 0) {
@@ -540,7 +558,13 @@ private func findButton(with title: String, in view: NSView) -> NSButton? {
                             }
                         },
                         onRename: { rename_wp(wallpaper, to: $0) },
-                        onExport: { export_wp(wallpaper) }
+                        onExport: { export_wp(wallpaper) },
+                        onQuickPreview: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                previewWallpaper = wallpaper
+                                showPreview = true
+                            }
+                        }
                     )
                     .environmentObject(service)
                     .frame(width: 300, height: 260)
@@ -650,7 +674,7 @@ private func findButton(with title: String, in view: NSView) -> NSButton? {
         if isImage {
             ExportManager.shared.showExportMenu(
                 for: wallpaper,
-            sourceURL: sourceURL,
+                sourceURL: sourceURL,
                 showCropEditor: { image, wp, url in
                     self.showCropEditorWindow(image: image, wallpaper: wp, sourceURL: url)
                 }
@@ -944,10 +968,12 @@ struct WallpaperCard: View {
     let onDelete: () -> Void
     let onRename: (String) -> Void
     let onExport: () -> Void
+    let onQuickPreview: () -> Void
     
     @State private var isHovered = false
     @State private var isEditing = false
     @State private var editedName = ""
+    @State private var showScreenPicker = false
     @FocusState private var isNameFocused: Bool
     @EnvironmentObject private var service: macpaperService
     
@@ -960,6 +986,11 @@ struct WallpaperCard: View {
         VStack(alignment: .center, spacing: 8) {
             previewSection
                 .frame(maxWidth: .infinity)
+                .onTapGesture(count: 2) {
+                    if !wallpaper.isFolder {
+                        onQuickPreview()
+                    }
+                }
             infoSection
                 .frame(height: 50)
         }
@@ -981,6 +1012,9 @@ struct WallpaperCard: View {
         .onTapGesture {
             onTap()
         }
+        .onAppear {
+            service.refreshScreenCount()
+        }
         .onChange(of: isEditing) { editing in
             if editing {
                 editedName = wallpaper.name
@@ -996,7 +1030,7 @@ struct WallpaperCard: View {
         }
     }
 
-        private var previewSection: some View {
+    private var previewSection: some View {
         ZStack {
             Rectangle()
                 .fill(Color.brown.opacity(0.2))
@@ -1171,13 +1205,99 @@ struct WallpaperCard: View {
                 Spacer()
                 
                 if !isActive {
-                    SimpleButton(
-                        title: NSLocalizedString("set_wallpaper", comment: "set wallpaper"),
-                        icon: "wand.and.stars",
-                        isPrimary: true,
-                        action: onSelect
-                    )
-                    .padding(.bottom, 12)
+                    if service.screenCount > 1 && !isStillWallpaper {
+                        VStack(spacing: 6) {
+                            if showScreenPicker {
+                                HStack(spacing: 6) {
+                                    Button(action: {
+                                        showScreenPicker = false
+                                        onSelect()
+                                    }) {
+                                        VStack(spacing: 3) {
+                                            Image(systemName: "display.2")
+                                                .font(.system(size: 13, weight: .medium))
+                                            Text("All")
+                                                .font(.system(size: 9, weight: .medium))
+                                        }
+                                        .foregroundStyle(.white)
+                                        .frame(width: 44, height: 36)
+                                        .background {
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color(red: 0.42, green: 0.47, blue: 0.85).opacity(0.85))
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    ForEach(0..<service.screenCount, id: \.self) { idx in
+                                        Button(action: {
+                                            showScreenPicker = false
+                                            service.set_wp_on_screen(wallpaper, screenIndex: idx)
+                                        }) {
+                                            VStack(spacing: 3) {
+                                                Image(systemName: "display")
+                                                    .font(.system(size: 13, weight: .medium))
+                                                Text("\(idx + 1)")
+                                                    .font(.system(size: 9, weight: .bold))
+                                            }
+                                            .foregroundStyle(.white)
+                                            .frame(width: 36, height: 36)
+                                            .background {
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(Color.white.opacity(0.15))
+                                                    .overlay {
+                                                        RoundedRectangle(cornerRadius: 10)
+                                                            .stroke(.white.opacity(0.3), lineWidth: 1)
+                                                    }
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.8).combined(with: .opacity),
+                                    removal: .scale(scale: 0.8).combined(with: .opacity)
+                                ))
+                            } else {
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        showScreenPicker = true
+                                    }
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "wand.and.stars")
+                                            .font(.system(size: 13, weight: .medium))
+                                        Text(NSLocalizedString("set_wallpaper", comment: "set wallpaper"))
+                                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .opacity(0.7)
+                                    }
+                                    .foregroundStyle(.primary)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(.regularMaterial.opacity(0.9))
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 16)
+                                                    .stroke(.primary.opacity(0.3), lineWidth: 1)
+                                            }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: showScreenPicker)
+                        .padding(.bottom, 12)
+                    } else {
+                        SimpleButton(
+                            title: NSLocalizedString("set_wallpaper", comment: "set wallpaper"),
+                            icon: "wand.and.stars",
+                            isPrimary: true,
+                            action: onSelect
+                        )
+                        .padding(.bottom, 12)
+                    }
                 }
             }
         }

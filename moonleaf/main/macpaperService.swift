@@ -27,17 +27,25 @@ class macpaperService: NSObject, ObservableObject {
     @Published var currentPath: URL?
     @Published var navStack: [URL] = []
 
+    @Published var screenWallpapers: [Int: String] = [:]
+
+    @Published var screenCount: Int = 1
+
     var isAtRoot: Bool {
         return navStack.isEmpty
     }
 
     private let wrapped_obj: String
+    private let wallpaper_cli: String
+    private let glasswp_path: String
     private let wp_storage_dir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".local/share/paper/wallpaper")
     private let settings_file = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/moonleaf/settings.json")
     private let export_folder_file = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/moonleaf/export_folder")
+    private let screen_wallpapers_file = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/moonleaf/screen_wallpapers.json")
     private var shuffleTimer: DispatchSourceTimer?
 
     enum LocalSortMode: String, CaseIterable {
@@ -86,11 +94,15 @@ class macpaperService: NSObject, ObservableObject {
 
     override init() {
         let app_path = Bundle.main.bundlePath
-        wrapped_obj = "\(app_path)/Contents/MacOS/macpaper-bin"
+        wrapped_obj = "\(app_path)/Contents/MacOS/moonleaf-bin"
+        wallpaper_cli = "\(app_path)/Contents/Resources/bin/wallpaper"
+        glasswp_path = "\(app_path)/Contents/Resources/bin/glasswp"
         super.init()
         syncConfigs()
         loadSettings()
         loadVolume()
+        screenCount = NSScreen.screens.count
+        loadScreenWallpapers()
         if shuffleEnabled {
             startShuffleTimer()
         }
@@ -98,6 +110,18 @@ class macpaperService: NSObject, ObservableObject {
 
     deinit {
         shuffleTimer?.cancel()
+    }
+
+    public func launchGlasswpDaemon() {
+        
+        if checkIfGlasswpIsRunning() { return }
+        
+        guard FileManager.default.fileExists(atPath: glasswp_path) else { return }
+        
+        let task = Process()
+        task.launchPath = glasswp_path
+        task.arguments = ["--daemon"]
+        task.launch()
     }
 
     func select_wp(_ wallpaper: endup_wp?) {
@@ -259,15 +283,19 @@ class macpaperService: NSObject, ObservableObject {
         volume = new_vol
         let volumeFloat = Float(new_vol)
 
+        
         DistributedNotificationCenter.default().postNotificationName(
             Notification.Name("com.naomisphere.moonleaf.volumeChanged"),
             object: nil,
             userInfo: ["volume": volumeFloat],
             deliverImmediately: true
         )
-
+        
+        
         let vol_in_percentage = Int(new_vol * 100)
-        _exec([wrapped_obj, "--volume", "\(vol_in_percentage)"]) { _ in }
+        let volFile = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/moonleaf/volume")
+        try? "\(vol_in_percentage)".write(to: volFile, atomically: true, encoding: .utf8)
     }
 
     func fetch_wallpapers() {
@@ -357,8 +385,8 @@ class macpaperService: NSObject, ObservableObject {
 
     func set_wp(_ wallpaper: endup_wp) {
         let ext = (wallpaper.path as NSString).pathExtension.lowercased()
-        let isMoving = ["mov", "mp4"].contains(ext)
-        let isStill = ["jpg", "jpeg", "png", "gif"].contains(ext)
+        let isMoving = ["mov", "mp4", "gif"].contains(ext)
+        let isStill = ["jpg", "jpeg", "png"].contains(ext)
 
         guard isMoving || isStill else { return }
 
@@ -366,18 +394,88 @@ class macpaperService: NSObject, ObservableObject {
 
         copyWallpaperForScreensaver(wallpaper)
 
-        if current_wp != nil {
-            DistributedNotificationCenter.default().postNotificationName(
-                Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
-                object: nil,
-                userInfo: ["filePath": wallpaper.path],
-                deliverImmediately: true
-            )
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.current_wp = wallpaper.path
+        
+        if isStill {
+            let cliPath = Bundle.main.bundlePath + "/Contents/Resources/bin/wallpaper"
+            if FileManager.default.fileExists(atPath: cliPath) {
+                _exec_wallpaper(["set", wallpaper.path]) { [weak self] success in
+                    guard let self = self else { return }
+                    
+                    self.postOverlayNotification(path: wallpaper.path)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        self.current_wp = wallpaper.path
+                        self.screenWallpapers.removeAll()
+                        self.saveScreenWallpapers()
+                    }
+                }
+            } else {
+                
+                self.postOverlayNotification(path: wallpaper.path)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.current_wp = wallpaper.path
+                    self.screenWallpapers.removeAll()
+                    self.saveScreenWallpapers()
+                }
             }
-        } else {
-            set_wp_after_unset(wallpaper)
+            return
+        }
+
+        
+        
+        self.postOverlayNotification(path: wallpaper.path)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.current_wp = wallpaper.path
+            self.screenWallpapers.removeAll()
+            self.saveScreenWallpapers()
+        }
+    }
+
+    private func postOverlayNotification(path: String) {
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
+            object: nil,
+            userInfo: ["filePath": path],
+            deliverImmediately: true
+        )
+    }
+
+    private func checkIfGlasswpIsRunning() -> Bool {
+        let task = Process()
+        task.launchPath = "/usr/bin/pgrep"
+        task.arguments = ["-f", "glasswp"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        task.launch()
+        task.waitUntilExit()
+        return task.terminationStatus == 0
+    }
+
+    func set_wp_on_screen(_ wallpaper: endup_wp, screenIndex: Int) {
+        let ext = (wallpaper.path as NSString).pathExtension.lowercased()
+        let isMoving = ["mov", "mp4", "gif"].contains(ext)
+        let isStill = ["jpg", "jpeg", "png"].contains(ext)
+        guard isMoving || isStill else { return }
+
+        
+        if isStill {
+            set_wp(wallpaper)
+            return
+        }
+
+        
+        DistributedNotificationCenter.default().postNotificationName(
+            Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
+            object: nil,
+            userInfo: ["filePath": wallpaper.path, "screenIndex": screenIndex],
+            deliverImmediately: true
+        )
+
+        DispatchQueue.main.async {
+            self.screenWallpapers[screenIndex] = wallpaper.path
+            self.saveScreenWallpapers()
+            self.current_wp = wallpaper.path
         }
     }
 
@@ -398,6 +496,7 @@ class macpaperService: NSObject, ObservableObject {
     }
 
     private func set_wp_after_unset(_ wallpaper: endup_wp) {
+        
         _exec([wrapped_obj, "--set", wallpaper.path]) { [weak self] success in
             if success {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -413,7 +512,14 @@ class macpaperService: NSObject, ObservableObject {
         DispatchQueue.main.async { self.selected_wp = nil }
         current_wp = nil
         wp_is_agent = false
-        _exec([wrapped_obj, "--unset"]) { [weak self] success in
+        
+        let killTask = Process()
+        killTask.launchPath = "/usr/bin/pkill"
+        killTask.arguments = ["-9", "-f", "glasswp"]
+        try? killTask.run()
+        killTask.waitUntilExit()
+        
+        _exec([wrapped_obj, "--unset"]) { _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 completion()
             }
@@ -464,6 +570,25 @@ class macpaperService: NSObject, ObservableObject {
             let task = Process()
             task.launchPath = arguments[0]
             task.arguments = Array(arguments.dropFirst())
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = pipe
+            task.launch()
+            task.waitUntilExit()
+            DispatchQueue.main.async { completion(task.terminationStatus == 0) }
+        }
+    }
+
+    private func _exec_wallpaper(_ arguments: [String], completion: @escaping (Bool) -> Void) {
+        let cliPath = Bundle.main.bundlePath + "/Contents/Resources/bin/wallpaper"
+        guard FileManager.default.fileExists(atPath: cliPath) else {
+            completion(false)
+            return
+        }
+        DispatchQueue.global(qos: .background).async {
+            let task = Process()
+            task.launchPath = cliPath
+            task.arguments = arguments
             let pipe = Pipe()
             task.standardOutput = pipe
             task.standardError = pipe
@@ -551,6 +676,51 @@ class macpaperService: NSObject, ObservableObject {
                 if !FileManager.default.fileExists(atPath: dest.path) {
                     try? FileManager.default.createSymbolicLink(at: dest, withDestinationURL: file)
                 }
+            }
+        }
+    }
+
+    
+
+    func refreshScreenCount() {
+        screenCount = NSScreen.screens.count
+    }
+
+    private func saveScreenWallpapers() {
+        do {
+            var encoded: [String: String] = [:]
+            for (idx, path) in screenWallpapers {
+                encoded[String(idx)] = path
+            }
+            let data = try JSONEncoder().encode(encoded)
+            try FileManager.default.createDirectory(
+                at: screen_wallpapers_file.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try data.write(to: screen_wallpapers_file)
+        } catch {}
+    }
+
+    private func loadScreenWallpapers() {
+        guard FileManager.default.fileExists(atPath: screen_wallpapers_file.path),
+              let data = try? Data(contentsOf: screen_wallpapers_file),
+              let decoded = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return }
+
+        var loaded: [Int: String] = [:]
+        for (key, path) in decoded {
+            if let idx = Int(key) { loaded[idx] = path }
+        }
+        screenWallpapers = loaded
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            for (idx, path) in loaded {
+                guard FileManager.default.fileExists(atPath: path) else { continue }
+                DistributedNotificationCenter.default().postNotificationName(
+                    Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
+                    object: nil,
+                    userInfo: ["filePath": path, "screenIndex": idx],
+                    deliverImmediately: true
+                )
             }
         }
     }

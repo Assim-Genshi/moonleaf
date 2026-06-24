@@ -32,6 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @AppStorage("checkForUpdates") private var checkForUpdates = true
     @AppStorage("glassBackground") private var glassBackground = false
     var updater = Updater()
+    private let service = macpaperService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -46,7 +47,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if checkForUpdates {
             updater.checkForUpdates()
         }
+
+        service.launchGlasswpDaemon()
     }
+
+    /* doing this would kill the actual wallpaper too
+    func applicationWillTerminate(_ notification: Notification) {
+        let killTask = Process()
+        killTask.launchPath = "/usr/bin/pkill"
+        killTask.arguments = ["-9", "-f", "macpaper Wallpaper Service (glasswp)"]
+        try? killTask.run()
+        killTask.waitUntilExit()
+    }
+    */
 
     private func performFirstLaunchMigration() {
         let home = FileManager.default.homeDirectoryForCurrentUser
