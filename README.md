@@ -71,8 +71,7 @@ Versions pre-v3.0 (macpaper) are licensed under the GNU General Public License v
 
 ## 🔨 Building from Source
 - Clone the repo
-- ```cd``` into app
-- ```sh build.sh```
+- Run ```scripts/build.sh```, optionally with the --all flag to build for all archs (will default to host arch)
 
 ## 🉑️ Translating
 Contributing to translation is pretty simple and straightforward -partly because there are not many strings to translate-. Fork the repo, grab the template on the [lang](./lang) folder (or an already existing strings file), and replace the value of the keys with the ones respective to your language. Then, upload the translation to lang/{lang}.lproj and submit a pull request.

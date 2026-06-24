@@ -233,7 +233,10 @@ cp artwork/icns/moonleaf/moonleaf.icns "$RSC_DIR" 2>/dev/null || true
 cp artwork/png/moonleaf.png "${RSC_DIR}/.moonleaf_logo.png" 2>/dev/null || true
 cp artwork/png/moonleaf.png "${RSC_DIR}/StatusBarIcon.png" 2>/dev/null || true
 cp img/png/kofi_symbol.png "$RSC_DIR/.kofi.png" 2>/dev/null || true
+
+gzip -dc moonleaf/resources/bin/wallpaper.gz > "moonleaf/resources/bin/wallpaper" 2>/dev/null
 cp -R moonleaf/resources/* "$RSC_DIR/" 2>/dev/null || true
+rm -f "$RSC_DIR/bin/wallpaper.gz" 2>/dev/null
 
 echo "adding localization strings"
 cp -r lang/*.lproj "$RSC_DIR"
