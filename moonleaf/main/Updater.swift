@@ -17,14 +17,14 @@ class Updater: ObservableObject {
     @Published var changelog: String?
 
     private var baseUrl: String {
-        let defaultUrl = "https://raw.githubusercontent.com/naomisphere/moonleaf/main"
+        let defaultUrl = "https://raw.githubusercontent.com/parkuoa/moonleaf/main"
         let serverFile = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/share/macpaper/update_server")
         
         if FileManager.default.fileExists(atPath: serverFile.path),
            let server = try? String(contentsOf: serverFile) {
             let trimmed = server.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.lowercased().hasPrefix("github.com/naomisphere/") {
+            if trimmed.lowercased().hasPrefix("github.com/parkuoa/") {
                 let repoPath = trimmed.replacingOccurrences(of: "github.com/", with: "")
                 return "https://raw.githubusercontent.com/\(repoPath)/main"
             }
@@ -33,14 +33,14 @@ class Updater: ObservableObject {
     }
 
     private var apiBaseUrl: String {
-        let defaultUrl = "https://api.github.com/repos/naomisphere/moonleaf"
+        let defaultUrl = "https://api.github.com/repos/parkuoa/moonleaf"
         let serverFile = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/share/macpaper/update_server")
         
         if FileManager.default.fileExists(atPath: serverFile.path),
            let server = try? String(contentsOf: serverFile) {
             let trimmed = server.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.lowercased().hasPrefix("github.com/naomisphere/") {
+            if trimmed.lowercased().hasPrefix("github.com/parkuoa/") {
                 let repoPath = trimmed.replacingOccurrences(of: "github.com/", with: "")
                 return "https://api.github.com/repos/\(repoPath)"
             }
@@ -107,7 +107,7 @@ class Updater: ObservableObject {
     private let updaterScriptContent = """
 #!/bin/bash
 
-SERVER_URL="${3:-https://github.com/naomisphere/moonleaf}"
+SERVER_URL="${3:-https://github.com/parkuoa/moonleaf}"
 REPO=$(echo "$SERVER_URL" | sed 's|https://github.com/||')
 RAW_URL="https://raw.githubusercontent.com/$REPO/main/latest"
 
@@ -164,11 +164,11 @@ exit 0
 
         let serverFile = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/share/macpaper/update_server")
-        var serverArg = "https://github.com/naomisphere/moonleaf"
+        var serverArg = "https://github.com/parkuoa/moonleaf"
         if FileManager.default.fileExists(atPath: serverFile.path),
            let server = try? String(contentsOf: serverFile) {
             let trimmed = server.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.lowercased().hasPrefix("github.com/naomisphere/") {
+            if trimmed.lowercased().hasPrefix("github.com/parkuoa/") {
                 serverArg = "https://\(trimmed)"
             }
         }
