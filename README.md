@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/naomisphere/moonleaf"><img src="./artwork/png/moonleaf2.png" alt="moonleaf" width="150"></a>
+  <a href="https://github.com/parkuoa/moonleaf"><img src="./artwork/png/moonleaf2.png" alt="moonleaf" width="150"></a>
   <br>
   moonleaf
   <br>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a title="platform" target="_blank" href="https://github.com/naomisphere/moonleaf/releases/latest"><img src="https://img.shields.io/github/v/release/naomisphere/moonleaf?style=flat&color=blue&include_prereleases"></a>
+  <a title="platform" target="_blank" href="https://github.com/parkuoa/moonleaf/releases/latest"><img src="https://img.shields.io/github/v/release/parkuoa/moonleaf?style=flat&color=blue&include_prereleases"></a>
   <img src="https://img.shields.io/badge/macOS-12%2B-2396ED?style=flat&logo=apple&logoColor=white" alt="platform" style="margin-right: 10px;" />
   
   <a href="./LICENSE">
@@ -41,7 +41,7 @@ moonleaf is a feature-packed Wallpaper Manager for macOS, with support for gifs,
 
 ## 🍺 Homebrew
 ```
-brew install --cask naomisphere/moonleaf/moonleaf
+brew install --cask parkuoa/moonleaf/moonleaf
 ```
 then,
 ```
@@ -60,7 +60,7 @@ xattr -dr com.apple.quarantine /Applications/moonleaf.app
 > You only need to do this once.
 
 <p align="center">
-  <a href="https://github.com/naomisphere/moonleaf/releases/latest/download/moonleaf.dmg" target="_self"><img width="200" src="https://github.com/user-attachments/assets/e2b187d1-8010-45cf-a9d4-e7ce5e2e677c" /></a>
+  <a href="https://github.com/parkuoa/moonleaf/releases/latest/download/moonleaf.dmg" target="_self"><img width="200" src="https://github.com/user-attachments/assets/e2b187d1-8010-45cf-a9d4-e7ce5e2e677c" /></a>
 </p>
 
 ---
@@ -95,7 +95,7 @@ xattr -dr com.apple.quarantine /Applications/moonleaf.app
 ```
 
 ### Apple could not verify "moonleaf" is free of malware...
-You can fix this by doing the same steps as [here](https://github.com/naomisphere/moonleaf/tree/main/README.md#installation).
+You can fix this by doing the same steps as [here](https://github.com/parkuoa/moonleaf/tree/main/README.md#installation).
 
 ## ❤️ Support me
 ☕ If you like my work and want to support me, you can do so via Ko-fi:\
