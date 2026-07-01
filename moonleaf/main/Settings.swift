@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("exportFolderPath") private var exportFolderPath = ""
     @AppStorage("useAsScreensaver") private var useAsScreensaver = false
     @AppStorage("glassBackground") private var glassBackground = false
+    @AppStorage("appTheme") private var appTheme = "system"
 
     @State private var visualizer_mode: String = "disabled"
     @State private var visualizer_colorMode: String = "rainbow"
@@ -122,7 +123,7 @@ struct SettingsView: View {
             }
         }
         .frame(minWidth: 550, idealWidth: 600, minHeight: 500, idealHeight: 550)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color.mainSurface)
         .onAppear {
             loadAPIKey()
             ap_is_enabled = service.ap_is_enabled
@@ -134,6 +135,11 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showChangelogSheet) {
             changelogSheet
+        }
+        .onChange(of: appTheme) { newValue in
+            if let delegate = NSApp.delegate as? AppDelegate {
+                delegate.updateAppearances(to: newValue)
+            }
         }
     }
 
@@ -311,11 +317,28 @@ struct SettingsView: View {
     private var managerSettings: some View {
         VStack(alignment: .leading, spacing: 20) {
             Section(title: NSLocalizedString("settings_appearance", comment: "Appearance")) {
-                SToggle(
-                    title: NSLocalizedString("settings_glass_bg", comment: "Glass Background"),
-                    description: NSLocalizedString("settings_glass_bg_desc", comment: ""),
-                    isOn: $glassBackground
-                )
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text(NSLocalizedString("settings_theme", value: "App Theme", comment: "App Theme"))
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
+                        Picker("", selection: $appTheme) {
+                            Text(NSLocalizedString("settings_theme_system", value: "System", comment: "System")).tag("system")
+                            Text(NSLocalizedString("settings_theme_light", value: "Light", comment: "Light")).tag("light")
+                            Text(NSLocalizedString("settings_theme_dark", value: "Dark", comment: "Dark")).tag("dark")
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                        .frame(width: 180)
+                    }
+                    
+                    Divider().padding(.vertical, 4)
+                    
+                    SToggle(
+                        title: NSLocalizedString("settings_glass_bg", comment: "Glass Background"),
+                        description: NSLocalizedString("settings_glass_bg_desc", comment: ""),
+                        isOn: $glassBackground
+                    )
+                }
             }
 
             Section(title: NSLocalizedString("settings_sort", comment: "Default Sort")) {

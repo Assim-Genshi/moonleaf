@@ -8,6 +8,7 @@
 import SwiftUI
 import AVKit
 import UniformTypeIdentifiers
+import ImageIO
 
 class MenuHandler: NSObject {
     weak var service: macpaperService?
@@ -28,26 +29,119 @@ class MenuHandler: NSObject {
 }
 
 struct ManagerView: View {
-    @StateObject private var service = macpaperService()
+    @EnvironmentObject private var service: macpaperService
     @State private var show_importer = false
     @State private var importingFolder = false
     @State private var showAddPopover = false
     @State private var file_drag = false
     @State private var show_wp_util_overlay = false
     @State private var overlay_chosen_wp: endup_wp? = nil
-    @State private var showFavoritesOnly = false
-    @State private var showSortDropdown = false
     @State private var showWpActionsDropdown = false
-    @State private var previewWallpaper: endup_wp? = nil
-    @State private var showPreview = false
     private let menuHandler = MenuHandler()
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                toolbarView
-                contentView
+            GeometryReader { geo in
+                let width = geo.size.width
+                let spacing: CGFloat = 20
+                let columnCount = max(2, Int((width - 32) / (260 + spacing)))
+                let colWidth = (width - 32 - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount)
+                let displayed = service.showFavoritesOnly
+                    ? service.wallpapers.filter { service.isFavorite($0) }
+                    : service.wallpapers
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer().frame(height: 48)
+
+                        if service.isAtRoot {
+                            toolbarView
+                        } else {
+                            HStack {
+                                Button(action: { service.back() }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "arrow.left")
+                                        Text("Back")
+                                    }
+                                    .font(.system(size: 13, weight: .medium))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.1)))
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.leading, 32)
+                                .padding(.top, 16)
+                                
+                                Spacer()
+                            }
+                        }
+
+                        ZStack {
+                            if service.isLoading {
+                                loadingView
+                                    .frame(minHeight: max(200, geo.size.height - 120))
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.combined(with: .scale(scale: 0.9)),
+                                        removal: .opacity.combined(with: .scale(scale: 1.1))
+                                    ))
+                            } else if service.wallpapers.isEmpty {
+                                NoWpView
+                                    .frame(minHeight: max(200, geo.size.height - 120))
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                        removal: .opacity
+                                    ))
+                            } else {
+                                LazyLibraryMasonryContent(
+                                    wallpapers: displayed,
+                                    columnCount: columnCount,
+                                    spacing: spacing,
+                                    colWidth: colWidth,
+                                    onSelect: { wallpaper in
+                                        withAnimation(.easeInOut(duration: 0.3)) { service.set_wp(wallpaper) }
+                                    },
+                                    onTap: { wallpaper in
+                                        if wallpaper.isFolder {
+                                            service.navigateTo(folder: wallpaper)
+                                        } else {
+                                            withAnimation(.easeInOut(duration: 0.3)) {
+                                                service.previewWallpaper = wallpaper
+                                                service.showPreview = true
+                                            }
+                                        }
+                                    },
+                                    onDelete: { wallpaper in
+                                        withAnimation(.easeInOut(duration: 0.4)) {
+                                            delete_wp(wallpaper)
+                                            if service.selected_wp?.id == wallpaper.id { service.select_wp(nil) }
+                                        }
+                                    },
+                                    onRename: { wallpaper, name in rename_wp(wallpaper, to: name) },
+                                    onExport: { wallpaper, custom in export_wp(wallpaper, custom: custom) },
+                                    onQuickPreview: { wallpaper in
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            service.previewWallpaper = wallpaper
+                                            service.showPreview = true
+                                        }
+                                    }
+                                )
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 32)
+                                .padding(.top, 8)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                    removal: .opacity
+                                ))
+                            }
+                        }
+                    }
+                }
             }
+            .onDrop(of: [.fileURL], isTargeted: $file_drag) { providers in
+                drop_handle(providers)
+            }
+            .animation(.easeInOut(duration: 0.4), value: service.isLoading)
+            .animation(.easeInOut(duration: 0.4), value: service.wallpapers.isEmpty)
 
             if show_wp_util_overlay, let wallpaper = overlay_chosen_wp {
                 WPCUtilOverlay(
@@ -62,20 +156,6 @@ struct ManagerView: View {
                 )
                 .transition(.opacity)
                 .zIndex(1)
-            }
-            
-            if showPreview, let wallpaper = previewWallpaper {
-                QuickPreviewOverlay(
-                    wallpaper: wallpaper,
-                    onClose: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showPreview = false
-                            previewWallpaper = nil
-                        }
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(999)
             }
         }
         .onAppear {
@@ -110,28 +190,22 @@ struct ManagerView: View {
     }
     
     private var toolbarView: some View {
-        HStack(spacing: 12) {
+        HStack {
+            Text("Library")
+                .font(.system(size: 48, weight: .bold))
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
             Button(action: { showAddPopover.toggle() }) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("add wallpaper")
-                        .font(Font(font_loader.bold(size: 13)))
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .opacity(0.8)
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .frame(width: 175)
-                .background {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(LinearGradient(colors: [Color(red: 0.42, green: 0.47, blue: 0.85), Color(red: 0.32, green: 0.37, blue: 0.75)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .font(.system(size: 18, weight: .bold))
+                    Text("Add")
+                        .font(.system(size: 18, weight: .bold))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AccentButtonStyle())
             .popover(isPresented: $showAddPopover, arrowEdge: .bottom) {
                 VStack(spacing: 4) {
                     Button(action: {
@@ -175,155 +249,11 @@ struct ManagerView: View {
                 .padding(8)
                 .frame(width: 160)
             }
-
-            Button(action: { show_settings() }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 13, weight: .medium))
-                    Text(NSLocalizedString("mgr_settings", comment: "settings"))
-                        .font(.system(size: 13, weight: .medium))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.08)))
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            if service.current_wp != nil {
-                Button(action: { showWpActionsDropdown.toggle() }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 13))
-                        Text("Active Wallpaper")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(showWpActionsDropdown ? 0.15 : 0.05)))
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showWpActionsDropdown, arrowEdge: .bottom) {
-                    VStack(spacing: 4) {
-                        if !isStillWallpaper(service.current_wp!) {
-                            Button(action: { service.wp_doPersist(!service.wp_is_agent); showWpActionsDropdown = false }) {
-                                HStack {
-                                    Image(systemName: service.wp_is_agent ? "checkmark.circle.fill" : "circle")
-                                    Text(NSLocalizedString("persist", comment: ""))
-                                    Spacer()
-                                }
-                                .font(.system(size: 13, weight: .medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.001)))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Button(action: { service.unset_wp(); showWpActionsDropdown = false }) {
-                            HStack {
-                                Image(systemName: "xmark.circle")
-                                    .foregroundStyle(.red)
-                                Text(NSLocalizedString("unset_current", comment: ""))
-                                    .foregroundStyle(.red)
-                                Spacer()
-                            }
-                            .font(.system(size: 13, weight: .medium))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.05)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(8)
-                    .frame(width: 170)
-                }
-            }
-
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) { showFavoritesOnly.toggle() }
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: showFavoritesOnly ? "star.fill" : "star")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(showFavoritesOnly ? .yellow : .secondary)
-                    if showFavoritesOnly {
-                        Text(NSLocalizedString("favorites_filter", comment: ""))
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(.primary)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.regularMaterial.opacity(showFavoritesOnly ? 0.9 : 0.5))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(showFavoritesOnly ? Color.yellow.opacity(0.4) : Color.primary.opacity(0.15), lineWidth: 1)
-                        }
-                }
-            }
-            .buttonStyle(.plain)
-
-            Button(action: { showSortDropdown.toggle() }) {
-                HStack(spacing: 6) {
-                    Text(service.localSort.displayName)
-                        .font(.system(size: 13, weight: .semibold))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(showSortDropdown ? 0.15 : 0.05)))
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showSortDropdown, arrowEdge: .bottom) {
-                VStack(spacing: 4) {
-                    ForEach(macpaperService.LocalSortMode.allCases, id: \.self) { mode in
-                        Button(action: { service.setLocalSort(mode); showSortDropdown = false }) {
-                            HStack {
-                                Text(mode.displayName)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(service.localSort == mode ? .primary : .secondary)
-                                Spacer()
-                                if service.localSort == mode {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 11, weight: .semibold))
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(service.localSort == mode ? 0.08 : 0.001)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(8)
-                .frame(width: 160)
-            }
-
-            Button(action: { service.fetch_wallpapers() }) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 14, weight: .medium))
-                    .padding(10)
-                    .frame(height: 34)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.08)))
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 32)
-        .padding(.vertical, 16)
-        .background {
-            RoundedRectangle(cornerRadius: 22)
-                .fill(.ultraThinMaterial.opacity(0.9))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22)
-                        .stroke(.primary.opacity(0.1), lineWidth: 0.5)
-                }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
     }
 
     private func show_settings() {
@@ -412,53 +342,7 @@ struct ManagerView: View {
         return nil
     }
     
-    private var contentView: some View {
-        VStack(spacing: 0) {
-            if !service.isAtRoot {
-                HStack {
-                    Button(action: { service.back() }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.left")
-                            Text("Back")
-                        }
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.1)))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.leading, 32)
-                    .padding(.top, 16)
-                    
-                    Spacer()
-                }
-            }
-            
-            ZStack {
-                if service.isLoading {
-                    loadingView
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.9)),
-                            removal: .opacity.combined(with: .scale(scale: 1.1))
-                        ))
-                } else if service.wallpapers.isEmpty {
-                    NoWpView
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                            removal: .opacity
-                        ))
-                } else {
-                    gridView
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .bottom)),
-                            removal: .opacity
-                        ))
-                }
-            }
-        }
-        .animation(.easeInOut(duration: 0.4), value: service.isLoading)
-        .animation(.easeInOut(duration: 0.4), value: service.wallpapers.isEmpty)
-    }
+
     
     private var loadingView: some View {
         VStack(spacing: 20) {
@@ -518,69 +402,7 @@ struct ManagerView: View {
         }
     }
     
-    private var gridView: some View {
-        ScrollView {
-            let columns = [
-                GridItem(.fixed(300), spacing: 30),
-                GridItem(.fixed(300), spacing: 30),
-                GridItem(.fixed(300), spacing: 30)
-            ]
-            
-            LazyVGrid(columns: columns, alignment: .center, spacing: 30) {
-                let displayed = showFavoritesOnly
-                    ? service.wallpapers.filter { service.isFavorite($0) }
-                    : service.wallpapers
-                ForEach(Array(displayed.enumerated()), id: \.element.id) { index, wallpaper in
-                    WallpaperCard(
-                        wallpaper: wallpaper,
-                        isActive: service.current_wp == wallpaper.path,
-                        cardIsSelected: service.selected_wp?.id == wallpaper.id,
-                        onSelect: {
-                            withAnimation(.easeInOut(duration: 0.3)) { service.set_wp(wallpaper) }
-                        },
-                        onTap: {
-                            if wallpaper.isFolder {
-                                service.navigateTo(folder: wallpaper)
-                            } else {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    if service.selected_wp?.id == wallpaper.id {
-                                        service.select_wp(nil)
-                                    } else {
-                                        service.select_wp(wallpaper)
-                                    }
-                                }
-                            }
-                        },
-                        onDelete: {
-                            withAnimation(.easeInOut(duration: 0.4)) {
-                                delete_wp(wallpaper)
-                                if service.selected_wp?.id == wallpaper.id { service.select_wp(nil) }
-                            }
-                        },
-                        onRename: { rename_wp(wallpaper, to: $0) },
-                        onExport: { export_wp(wallpaper) },
-                        onQuickPreview: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                previewWallpaper = wallpaper
-                                showPreview = true
-                            }
-                        }
-                    )
-                    .environmentObject(service)
-                    .frame(width: 300, height: 260)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.8).combined(with: .offset(y: 20))),
-                        removal: .opacity.combined(with: .scale(scale: 0.8))
-                    ))
-                    .animation(.easeOut(duration: 0.4).delay(Double(index) * 0.1), value: service.wallpapers.count)
-                }
-            }
-            .padding(32)
-        }
-        .onDrop(of: [.fileURL], isTargeted: $file_drag) { providers in
-            drop_handle(providers)
-        }
-    }
+
     
     private func drop_handle(_ providers: [NSItemProvider]) -> Bool {
         for provider in providers {
@@ -664,21 +486,17 @@ struct ManagerView: View {
         }
     }
     
-    private func export_wp(_ wallpaper: endup_wp) {
+    private func export_wp(_ wallpaper: endup_wp, custom: Bool = false) {
         let sourceURL = URL(fileURLWithPath: wallpaper.path)
         guard FileManager.default.fileExists(atPath: sourceURL.path) else { return }
         
         let fileExtension = sourceURL.pathExtension.lowercased()
         let isImage = ["jpg", "jpeg", "png", "gif"].contains(fileExtension)
         
-        if isImage {
-            ExportManager.shared.showExportMenu(
-                for: wallpaper,
-                sourceURL: sourceURL,
-                showCropEditor: { image, wp, url in
-                    self.showCropEditorWindow(image: image, wallpaper: wp, sourceURL: url)
-                }
-            )
+        if isImage && custom {
+            if let image = NSImage(contentsOf: sourceURL) {
+                self.showCropEditorWindow(image: image, wallpaper: wallpaper, sourceURL: sourceURL)
+            }
         } else {
             ExportManager.shared.exportOriginal(wallpaper: wallpaper, sourceURL: sourceURL)
         }
@@ -721,6 +539,63 @@ struct ManagerView: View {
     private func isStillWallpaper(_ path: String) -> Bool {
         let ext = (path as NSString).pathExtension.lowercased()
         return ["jpg", "jpeg", "png"].contains(ext)
+    }
+}
+
+private struct LazyLibraryMasonryContent: View {
+    let wallpapers: [endup_wp]
+    let columnCount: Int
+    let spacing: CGFloat
+    let colWidth: CGFloat
+    
+    let onSelect: (endup_wp) -> Void
+    let onTap: (endup_wp) -> Void
+    let onDelete: (endup_wp) -> Void
+    let onRename: (endup_wp, String) -> Void
+    let onExport: (endup_wp, Bool) -> Void
+    let onQuickPreview: (endup_wp) -> Void
+    
+    @EnvironmentObject private var service: macpaperService
+
+    private var columns: [[endup_wp]] {
+        guard columnCount > 0 else { return [] }
+        var cols = Array(repeating: [endup_wp](), count: columnCount)
+        var heights = Array(repeating: CGFloat(0), count: columnCount)
+
+        for item in wallpapers {
+            let shortest = heights.enumerated().min(by: { $0.element < $1.element })?.offset ?? 0
+            cols[shortest].append(item)
+            let aspect: CGFloat = item.isFolder ? 1.0 : 1.5
+            heights[shortest] += 1.0 / aspect
+        }
+
+        return cols
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: spacing) {
+            ForEach(0..<columnCount, id: \.self) { colIndex in
+                LazyVStack(spacing: spacing) {
+                    if colIndex < columns.count {
+                        ForEach(columns[colIndex]) { wallpaper in
+                            WallpaperCard(
+                                wallpaper: wallpaper,
+                                isActive: service.current_wp == wallpaper.path,
+                                cardIsSelected: service.selected_wp?.id == wallpaper.id,
+                                onSelect: { onSelect(wallpaper) },
+                                onTap: { onTap(wallpaper) },
+                                onDelete: { onDelete(wallpaper) },
+                                onRename: { onRename(wallpaper, $0) },
+                                onExport: { onExport(wallpaper, $0) },
+                                onQuickPreview: { onQuickPreview(wallpaper) }
+                            )
+                            .environmentObject(service)
+                        }
+                    }
+                }
+                .frame(width: colWidth)
+            }
+        }
     }
 }
 
@@ -835,17 +710,19 @@ struct SimpleButton: View {
                 Text(title)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
             }
-            .foregroundStyle(isPrimary ? .primary : .secondary)
+            .foregroundStyle(.white)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(.regularMaterial.opacity(isPrimary ? 0.9 : (isHovered ? 0.7 : 0.5)))
+                    .fill(.thinMaterial)
                     .overlay {
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(.primary.opacity(isPrimary ? 0.3 : 0.2), lineWidth: 1)
+                            .stroke(.white.opacity(0.15), lineWidth: 0.5)
                     }
+                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
             }
+            .scaleEffect(isHovered ? 1.02 : 1.0)
         }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) {
@@ -959,426 +836,6 @@ struct VolumeSlider: View {
     }
 }
 
-struct WallpaperCard: View {
-    let wallpaper: endup_wp
-    let isActive: Bool
-    let cardIsSelected: Bool
-    let onSelect: () -> Void
-    let onTap: () -> Void
-    let onDelete: () -> Void
-    let onRename: (String) -> Void
-    let onExport: () -> Void
-    let onQuickPreview: () -> Void
-    
-    @State private var isHovered = false
-    @State private var isEditing = false
-    @State private var editedName = ""
-    @State private var showScreenPicker = false
-    @FocusState private var isNameFocused: Bool
-    @EnvironmentObject private var service: macpaperService
-    
-    private var isStillWallpaper: Bool {
-        let ext = (wallpaper.path as NSString).pathExtension.lowercased()
-        return ["jpg", "jpeg", "png"].contains(ext)
-    }
-    
-    var body: some View {
-        VStack(alignment: .center, spacing: 8) {
-            previewSection
-                .frame(maxWidth: .infinity)
-                .onTapGesture(count: 2) {
-                    if !wallpaper.isFolder {
-                        onQuickPreview()
-                    }
-                }
-            infoSection
-                .frame(height: 50)
-        }
-        .frame(width: 300, height: 260)
-        .padding(12)
-        .background {
-            RoundedRectangle(cornerRadius: 22)
-                .fill(.regularMaterial.opacity(0.8))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22)
-                        .stroke(
-                            cardIsSelected ? Color.blue.opacity(0.6) :
-                            isActive ? Color.primary.opacity(0.4) : Color.primary.opacity(0.1), 
-                            lineWidth: cardIsSelected ? 3 : (isActive ? 2 : 1)
-                        )
-                }
-        }
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .onTapGesture {
-            onTap()
-        }
-        .onAppear {
-            service.refreshScreenCount()
-        }
-        .onChange(of: isEditing) { editing in
-            if editing {
-                editedName = wallpaper.name
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isNameFocused = true
-                }
-            }
-        }
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovered = hovering
-            }
-        }
-    }
-
-    private var previewSection: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.brown.opacity(0.2))
-            
-            let ext = (wallpaper.path as NSString).pathExtension.lowercased()
-            
-            if wallpaper.isFolder {
-                VStack(spacing: 12) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary.opacity(0.8))
-                }
-            } else if ["gif", "jpg", "jpeg", "png"].contains(ext) {
-                LazyImagePreview(path: wallpaper.path)
-            } else if ["mp4", "mov"].contains(ext) {
-                videoPreview(videoURL: URL(fileURLWithPath: wallpaper.path))
-                    .clipped()
-                    .overlay {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 32, weight: .light))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .background {
-                                Circle()
-                                    .fill(.black.opacity(0.3))
-                                    .frame(width: 40, height: 40)
-                            }
-                    }
-            } else {
-                Image(systemName: "photo")
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundStyle(.secondary)
-            }
-            
-            if isHovered || isActive {
-                overlayControls
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.9)),
-                        removal: .opacity.combined(with: .scale(scale: 1.1))
-                    ))
-            }
-        }
-        .frame(width: 276, height: 184)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    isActive 
-                        ? Color.primary.opacity(0.4)
-                        : Color.primary.opacity(0.1), 
-                    lineWidth: isActive ? 2 : 1
-                )
-        }
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovered = hovering
-            }
-        }
-    }
-
-    private var overlayControls: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    .black.opacity(0.6),
-                    .black.opacity(0.3),
-                    .clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            
-            VStack {
-                HStack {
-                    if isActive {
-                        Circle()
-                            .fill(.green.opacity(0.9))
-                            .frame(width: 24, height: 24)
-                            .overlay {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                            .background {
-                                Circle()
-                                    .fill(.regularMaterial)
-                                    .frame(width: 28, height: 28)
-                            }
-                    }
-
-                    FavoriteButton(
-                        isFavorite: service.isFavorite(wallpaper),
-                        action: { service.toggleFavorite(wallpaper) }
-                    )
-                    
-                    Spacer()
-                    
-                    if isActive && !isStillWallpaper {
-                        VolumeSlider(
-                            volume: $service.volume,
-                            onVolumeChange: { newVolume in
-                                service.chvol(newVolume)
-                            }
-                        )
-                        .scaleEffect(0.85)
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.8).combined(with: .opacity),
-                            removal: .scale(scale: 0.8).combined(with: .opacity)
-                        ))
-                    }
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 8) {
-                        Button(action: {
-                            isEditing = true
-                        }) {
-                            Circle()
-                                .fill(.mint.opacity(0.9))
-                                .frame(width: 24, height: 24)
-                                .overlay {
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.white)
-                                }
-                                .background {
-                                    Circle()
-                                        .fill(.regularMaterial)
-                                        .frame(width: 28, height: 28)
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: onExport) {
-                            Circle()
-                                .fill(.blue.opacity(0.9))
-                                .frame(width: 24, height: 24)
-                                .overlay {
-                                    Image(systemName: "arrow.down.circle")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.white)
-                                }
-                                .background {
-                                    Circle()
-                                        .fill(.regularMaterial)
-                                        .frame(width: 28, height: 28)
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: onDelete) {
-                            Circle()
-                                .fill(.red.opacity(0.9))
-                                .frame(width: 24, height: 24)
-                                .overlay {
-                                    Image(systemName: "trash")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.white)
-                                }
-                                .background {
-                                    Circle()
-                                        .fill(.regularMaterial)
-                                        .frame(width: 28, height: 28)
-                                }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                
-                Spacer()
-                
-                if !isActive {
-                    if service.screenCount > 1 && !isStillWallpaper {
-                        VStack(spacing: 6) {
-                            if showScreenPicker {
-                                HStack(spacing: 6) {
-                                    Button(action: {
-                                        showScreenPicker = false
-                                        onSelect()
-                                    }) {
-                                        VStack(spacing: 3) {
-                                            Image(systemName: "display.2")
-                                                .font(.system(size: 13, weight: .medium))
-                                            Text("All")
-                                                .font(.system(size: 9, weight: .medium))
-                                        }
-                                        .foregroundStyle(.white)
-                                        .frame(width: 44, height: 36)
-                                        .background {
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(Color(red: 0.42, green: 0.47, blue: 0.85).opacity(0.85))
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    ForEach(0..<service.screenCount, id: \.self) { idx in
-                                        Button(action: {
-                                            showScreenPicker = false
-                                            service.set_wp_on_screen(wallpaper, screenIndex: idx)
-                                        }) {
-                                            VStack(spacing: 3) {
-                                                Image(systemName: "display")
-                                                    .font(.system(size: 13, weight: .medium))
-                                                Text("\(idx + 1)")
-                                                    .font(.system(size: 9, weight: .bold))
-                                            }
-                                            .foregroundStyle(.white)
-                                            .frame(width: 36, height: 36)
-                                            .background {
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .fill(Color.white.opacity(0.15))
-                                                    .overlay {
-                                                        RoundedRectangle(cornerRadius: 10)
-                                                            .stroke(.white.opacity(0.3), lineWidth: 1)
-                                                    }
-                                            }
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .transition(.asymmetric(
-                                    insertion: .scale(scale: 0.8).combined(with: .opacity),
-                                    removal: .scale(scale: 0.8).combined(with: .opacity)
-                                ))
-                            } else {
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        showScreenPicker = true
-                                    }
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "wand.and.stars")
-                                            .font(.system(size: 13, weight: .medium))
-                                        Text(NSLocalizedString("set_wallpaper", comment: "set wallpaper"))
-                                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .opacity(0.7)
-                                    }
-                                    .foregroundStyle(.primary)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 12)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(.regularMaterial.opacity(0.9))
-                                            .overlay {
-                                                RoundedRectangle(cornerRadius: 16)
-                                                    .stroke(.primary.opacity(0.3), lineWidth: 1)
-                                            }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: showScreenPicker)
-                        .padding(.bottom, 12)
-                    } else {
-                        SimpleButton(
-                            title: NSLocalizedString("set_wallpaper", comment: "set wallpaper"),
-                            icon: "wand.and.stars",
-                            isPrimary: true,
-                            action: onSelect
-                        )
-                        .padding(.bottom, 12)
-                    }
-                }
-            }
-        }
-        .frame(width: 276, height: 184)
-    }
-    
-    private var infoSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if isEditing {
-                HStack(spacing: 4) {
-                    TextField("", text: $editedName)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.primary.opacity(0.9))
-                        .focused($isNameFocused)
-                        .onSubmit {
-                            saveName()
-                        }
-                    
-                    Button(action: saveName) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.green)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button(action: {
-                        isEditing = false
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.primary.opacity(0.1))
-                )
-            } else {
-                Text(wallpaper.name)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundStyle(.primary.opacity(0.9))
-                    .lineLimit(2)
-            }
-            
-            HStack {
-                let ext = (wallpaper.path as NSString).pathExtension.lowercased()
-                
-                let fileType = wallpaper.isFolder ? "folder" :
-                            ["mp4", "mov"].contains(ext) ? "video" :
-                            ext == "gif" ? "gif" :
-                            ["jpg", "jpeg", "png"].contains(ext) ? "image" : "unknown"
-                
-                Text(fileType)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background {
-                        Capsule()
-                            .fill(Color.brown.opacity(0.3))
-                    }
-                
-                Spacer()
-                
-                Text(ByteCountFormatter.string(fromByteCount: wallpaper.fileSize, countStyle: .file))
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .foregroundStyle(.secondary.opacity(0.8))
-            }
-        }
-    }
-    
-    private func saveName() {
-        if !editedName.isEmpty && editedName != wallpaper.name {
-            onRename(editedName)
-        }
-        isEditing = false
-    }
-}
 
 struct LazyImagePreview: View {
     let path: String
@@ -1390,8 +847,6 @@ struct LazyImagePreview: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: 276, maxHeight: 184)
-                    .clipped()
             } else {
                 Rectangle()
                     .fill(Color.brown.opacity(0.3))
@@ -1408,18 +863,59 @@ struct LazyImagePreview: View {
             return
         }
         
+        let fileURL = URL(fileURLWithPath: path)
         DispatchQueue.global(qos: .utility).async {
-            if let fullImage = NSImage(contentsOfFile: self.path) {
-                let targetSize = NSSize(width: 276, height: 184)
-                let thumbnail = self.resizeImageToFill(fullImage, to: targetSize)
-                
-                ImageCache.shared.setImage(thumbnail, forKey: self.path)
-                
-                DispatchQueue.main.async {
-                    self.image = thumbnail
+            let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+            guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions as CFDictionary) else {
+                if let fullImage = NSImage(contentsOfFile: self.path) {
+                    let thumbnail = self.resizeToFillLegacy(fullImage)
+                    ImageCache.shared.setImage(thumbnail, forKey: self.path)
+                    DispatchQueue.main.async {
+                        self.image = thumbnail
+                    }
                 }
+                return
+            }
+            
+            let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+            let maxPixel = 300.0 * scale
+            let downsampleOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true
+            ]
+            
+            guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else {
+                if let fullImage = NSImage(contentsOfFile: self.path) {
+                    let thumbnail = self.resizeToFillLegacy(fullImage)
+                    ImageCache.shared.setImage(thumbnail, forKey: self.path)
+                    DispatchQueue.main.async {
+                        self.image = thumbnail
+                    }
+                }
+                return
+            }
+            
+            let thumbnail = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            ImageCache.shared.setImage(thumbnail, forKey: self.path)
+            DispatchQueue.main.async {
+                self.image = thumbnail
             }
         }
+    }
+    
+    private func resizeToFillLegacy(_ fullImage: NSImage) -> NSImage {
+        let maxDimension: CGFloat = 300
+        let origSize = fullImage.size
+        let ratio = origSize.width / origSize.height
+        let targetSize: NSSize
+        if ratio > 1 {
+            targetSize = NSSize(width: maxDimension, height: maxDimension / ratio)
+        } else {
+            targetSize = NSSize(width: maxDimension * ratio, height: maxDimension)
+        }
+        return self.resizeImageToFill(fullImage, to: targetSize)
     }
     
     private func resizeImageToFill(_ image: NSImage, to size: NSSize) -> NSImage {
@@ -1631,7 +1127,7 @@ struct CropEditorView: View {
             .buttonStyle(.plain)
         }
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color.mainSurface)
     }
     
     private var cropCanvas: some View {
@@ -1746,7 +1242,7 @@ struct CropEditorView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color.mainSurface)
     }
     
     private var ratioSidebar: some View {
@@ -1777,7 +1273,7 @@ struct CropEditorView: View {
                 .padding(.vertical, 8)
             }
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color.secondarySurface)
     }
     
     private func sectionHeader(_ title: String) -> some View {

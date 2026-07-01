@@ -20,8 +20,11 @@ class macpaperService: NSObject, ObservableObject {
     @Published var showImages: Bool = true
     @Published var selected_wp: endup_wp? = nil
     @Published var favorites: Set<String> = []
+    @Published var showFavoritesOnly = false
     @Published var localSort: LocalSortMode = .date
     @Published var shuffleEnabled: Bool = false
+    @Published var previewWallpaper: endup_wp? = nil
+    @Published var showPreview: Bool = false
     @Published var shuffleInterval: ShuffleInterval = .oneHour
     @Published var importMethod: ImportMethod = .link
     @Published var currentPath: URL?

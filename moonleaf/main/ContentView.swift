@@ -8,17 +8,10 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var service = macpaperService()
     @State private var selectedTab: TabSelection = .wallpapers
-    @State private var version_label_alpha: Double = 0.6
     @AppStorage("glassBackground") private var glassBackground = false
-
-    private func app_version() -> String {
-        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-           let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
-            return "\(version) (\(build))"
-        }
-        return "unknown"
-    }
+    @State private var showSortDropdown = false
 
     enum TabSelection: CaseIterable {
         case wallpapers
@@ -26,7 +19,7 @@ struct ContentView: View {
 
         var title: String {
             switch self {
-            case .wallpapers: return NSLocalizedString("mgr_wp_title", comment: "wallpapers")
+            case .wallpapers: return NSLocalizedString("mgr_library_title", value: "Library", comment: "library")
             case .browse: return NSLocalizedString("mgr_browse_title", comment: "browse")
             }
         }
@@ -39,225 +32,280 @@ struct ContentView: View {
         }
     }
 
+    @Namespace private var tabAnimation
+
     var body: some View {
         ZStack {
-            Color.clear
-
-            VStack(spacing: 0) {
-                HStack(spacing: 20) {
-                    HStack(spacing: 12) {
-                        HStack(spacing: 12) {
-                            if let ml_logo = NSImage(named: ".moonleaf_logo") {
-                                Image(nsImage: ml_logo)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 42, height: 42)
-                            }
-                        }
-
-                        Text(NSLocalizedString("mgr_title", comment: "moonleaf"))
-                            .font(Font(font_loader.bold(size: 28)))
-                            .foregroundStyle(.primary.opacity(0.9))
-
-                        Text(app_version())
-                            .font(Font(font_loader.regular(size: 12)))
-                            .foregroundStyle(.secondary.opacity(version_label_alpha))
-                            .padding(.leading, 4)
-                            .padding(.top, 4)
+            ZStack(alignment: .top) {
+                // Main content
+                ZStack {
+                Group {
+                    switch selectedTab {
+                    case .wallpapers:
+                        ManagerView()
+                            .environmentObject(service)
+                    case .browse:
+                        BrowseView()
+                            .environmentObject(service)
                     }
+                }
+                .transition(.opacity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            // Top Bar
+            ZStack {
+                // Center: Tab Switcher
+                HStack(spacing: 8) {
                     Spacer()
-
-                    HStack(spacing: 16) {
-                        Button(action: {
-                            if let url = URL(string: "https://ko-fi.com/naomisphere") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }) {
-                            if let kofi_cup = NSImage(named: ".kofi") {
-                                Image(nsImage: kofi_cup)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 18, height: 18)
-                                    .frame(width: 36, height: 36)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(.regularMaterial.opacity(0.6))
-                                            .overlay {
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(.primary.opacity(0.2), lineWidth: 1)
-                                            }
-                                    }
-                            }
-                        }
-                        .buttonStyle(.plain)
-
+                    
+                    // Spacer of same width (32 button width + 8 spacing) to offset settings button and keep tabs centered
+                    Spacer().frame(width: 40)
+                    
+                    HStack(spacing: 2) {
                         ForEach(TabSelection.allCases, id: \.self) { tab in
-                            tabButton(
+                            TabButton(
                                 title: tab.title,
                                 icon: tab.icon,
                                 isSelected: selectedTab == tab,
+                                namespace: tabAnimation,
                                 action: {
-                                    withAnimation(.easeInOut(duration: 0.3)) { selectedTab = tab }
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { selectedTab = tab }
                                 }
                             )
                         }
                     }
+                    .padding(3)
+                    .background {
+                        Capsule()
+                            .fill(glassBackground ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
+                            .overlay {
+                                Capsule()
+                                    .stroke(.primary.opacity(0.08), lineWidth: 0.5)
+                            }
+                    }
+                    
+                    // Settings Button
+                    Button(action: { show_settings() }) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 16, height: 16)
+                            .padding(8)
+                            .background {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay {
+                                        Circle()
+                                            .stroke(.primary.opacity(0.08), lineWidth: 0.5)
+                                    }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Spacer()
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
-                .background(bg(useGlass: glassBackground))
-                .padding(.horizontal, 16)
 
-                ZStack {
-                    Group {
-                        switch selectedTab {
-                        case .wallpapers:
-                            ManagerView()
-                        case .browse:
-                            BrowseView()
+                // Right: Top-right actions stack
+                HStack {
+                    Spacer()
+                    if selectedTab == .wallpapers {
+                        HStack(spacing: 12) {
+                            // Kofi Button
+                            Button(action: {
+                                if let url = URL(string: "https://ko-fi.com/naomisphere") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }) {
+                                if let kofi_cup = NSImage(named: ".kofi") {
+                                    Image(nsImage: kofi_cup)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 16, height: 16)
+                                        .padding(8)
+                                        .background {
+                                            Circle()
+                                                .fill(.ultraThinMaterial)
+                                                .overlay {
+                                                    Circle()
+                                                        .stroke(.primary.opacity(0.08), lineWidth: 0.5)
+                                                }
+                                        }
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            // Favorite Toggle Button
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    service.showFavoritesOnly.toggle()
+                                }
+                            }) {
+                                Image(systemName: service.showFavoritesOnly ? "star.fill" : "star")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(service.showFavoritesOnly ? Color.accent : Color.primary)
+                                    .frame(width: 16, height: 16)
+                                    .padding(8)
+                                    .background {
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .overlay {
+                                                Circle()
+                                                    .stroke(.primary.opacity(0.08), lineWidth: 0.5)
+                                            }
+                                    }
+                            }
+                            .buttonStyle(.plain)
+
+                            // Filters / Sort Button (arrow.up.arrow.down)
+                            Button(action: { showSortDropdown.toggle() }) {
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 16, height: 16)
+                                    .padding(8)
+                                    .background {
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .overlay {
+                                                Circle()
+                                                    .stroke(.primary.opacity(0.08), lineWidth: 0.5)
+                                            }
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .popover(isPresented: $showSortDropdown, arrowEdge: .bottom) {
+                                VStack(spacing: 4) {
+                                    ForEach(macpaperService.LocalSortMode.allCases, id: \.self) { mode in
+                                        Button(action: { service.setLocalSort(mode); showSortDropdown = false }) {
+                                            HStack {
+                                                Text(mode.displayName)
+                                                    .font(.system(size: 13, weight: .medium))
+                                                    .foregroundStyle(service.localSort == mode ? .primary : .secondary)
+                                                Spacer()
+                                                if service.localSort == mode {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 11, weight: .semibold))
+                                                }
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(service.localSort == mode ? 0.08 : 0.001)))
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(8)
+                                .frame(width: 160)
+                            }
+                        }
+                        .padding(.trailing, 24)
+                    } else if selectedTab == .browse {
+                        BrowseTopActionsView()
+                            .padding(.trailing, 24)
+                    }
+                }
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            .background {
+                VStack(spacing: 0) {
+                    VariableBlurView(maxBlurRadius: 20, direction: .blurredTopClearBottom)
+                        .frame(height: 72)
+                    Spacer()
+                }
+                .ignoresSafeArea()
+            }
+        }
+        .focusable(false)
+
+            if service.showPreview, let wallpaper = service.previewWallpaper {
+                QuickPreviewOverlay(
+                    wallpaper: wallpaper,
+                    onClose: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            service.showPreview = false
+                            service.previewWallpaper = nil
                         }
                     }
-                    .transition(.opacity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                )
+                .environmentObject(service)
+                .transition(.opacity)
+                .zIndex(999)
             }
-            .focusable(false)
         }
+    }
+
+    private func show_settings() {
+        let settingsView = SettingsView()
+            .environmentObject(service)
+        
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 500),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        
+        if let managerWindow = NSApp.keyWindow {
+            let managerFrame = managerWindow.frame
+            let settingsSize = window.frame.size
+            
+            let x = managerFrame.midX - settingsSize.width / 2
+            let y = managerFrame.midY - settingsSize.height / 2
+            
+            window.setFrameOrigin(NSPoint(x: x, y: y))
+        } else {
+            window.center()
+        }
+        
+        window.title = "Settings"
+        window.titleVisibility = .hidden
+        window.contentView = NSHostingView(rootView: settingsView)
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
-struct tabButton: View {
+struct TabButton: View {
     let title: String
     let icon: String
     let isSelected: Bool
+    let namespace: Namespace.ID
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
-        RippleButton(action: action) {
-            HStack(spacing: 8) {
+        Button(action: action) {
+            HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(Font(font_loader.regular(size: 14)))
+                    .font(.system(size: 11, weight: .medium))
                 Text(title)
-                    .font(Font(font_loader.regular(size: 14)))
+                    .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(isSelected ? .primary : .secondary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .foregroundStyle(isSelected ? Color.primary : (isHovered ? Color.primary.opacity(0.7) : Color.secondary))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .background {
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.regularMaterial)
+                    Capsule()
+                        .fill(Color.mainSurface)
                         .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(.primary.opacity(0.1), lineWidth: 1)
+                            Capsule()
+                                .stroke(.primary.opacity(0.1), lineWidth: 0.5)
                         }
-                } else if isHovered {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(.quaternary.opacity(0.3))
+                        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
+                        .matchedGeometryEffect(id: "activeTab", in: namespace)
                 }
             }
+            .contentShape(Capsule())
         }
+        .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.2)) { isHovered = hovering }
+            withAnimation(.easeOut(duration: 0.15)) { isHovered = hovering }
         }
     }
 }
 
-struct bg: View {
-    var useGlass: Bool = true
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(useGlass ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(.regularMaterial))
-            
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(red: 0.75, green: 0.85, blue: 1.0).opacity(0.12))
-                
-            VStack(spacing: 0) {
-                Spacer()
-                AnimatedWaveView()
-                    .frame(height: 75)
-                    .opacity(0.9)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(.primary.opacity(0.08), lineWidth: 0.5)
-        }
-    }
-}
-
-struct GPUWave: View {
-    var amplitude: CGFloat
-    var frequency: CGFloat
-    var duration: Double
-    var color: Color
-    var lineWidth: CGFloat
-    var reverse: Bool
-    var isFilled: Bool = false
-    
-    @State private var isAnimating = false
-    
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let path = makePath(width: w, height: geo.size.height)
-            
-            Group {
-                if isFilled {
-                    path.fill(color)
-                } else {
-                    path.stroke(color, lineWidth: lineWidth)
-                }
-            }
-            .offset(x: isAnimating ? (reverse ? w : -w) : 0)
-            .offset(x: reverse ? -w : 0)
-            .frame(width: w * 2, alignment: .leading)
-            .onAppear {
-                withAnimation(.linear(duration: duration).repeatForever(autoreverses: false)) {
-                    isAnimating = true
-                }
-            }
-        }
-    }
-    
-    func makePath(width: CGFloat, height: CGFloat) -> Path {
-        var path = Path()
-        let mid = isFilled ? 0 : height / 2
-        let step: CGFloat = 5
-        let totalWidth = width * 2 
-        
-        if isFilled { path.move(to: CGPoint(x: 0, y: height)) }
-        path.addLine(to: CGPoint(x: 0, y: mid))
-        
-        for x in stride(from: step, through: totalWidth + step, by: step) {
-            let relativeX = x / width
-            let sine = sin(relativeX * frequency * .pi * 2)
-            path.addLine(to: CGPoint(x: x, y: mid + sine * amplitude))
-        }
-        
-        if isFilled {
-            path.addLine(to: CGPoint(x: totalWidth + step, y: height))
-            path.closeSubpath()
-        }
-        return path
-    }
-}
-
-struct AnimatedWaveView: View {
-    var body: some View {
-        ZStack {
-            GPUWave(amplitude: 15, frequency: 1, duration: 8.0, color: Color(red: 137/255, green: 156/255, blue: 232/255).opacity(0.20), lineWidth: 0, reverse: false, isFilled: true)
-                .padding(.top, 15)
-            GPUWave(amplitude: 10, frequency: 2, duration: 5.5, color: Color(red: 137/255, green: 156/255, blue: 232/255).opacity(0.35), lineWidth: 0, reverse: true, isFilled: true)
-                .padding(.top, 30)
-
-            GPUWave(amplitude: 14, frequency: 1, duration: 7.0, color: Color(red: 137/255, green: 156/255, blue: 232/255).opacity(0.5), lineWidth: 2.5, reverse: false)
-            GPUWave(amplitude: 8, frequency: 2, duration: 4.5, color: Color(red: 137/255, green: 156/255, blue: 232/255).opacity(0.6), lineWidth: 1.5, reverse: true)
-        }
-    }
-}

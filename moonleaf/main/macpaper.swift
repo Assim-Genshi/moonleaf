@@ -40,6 +40,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         font_loader.regFonts()
         
+        let savedTheme = UserDefaults.standard.string(forKey: "appTheme") ?? "system"
+        updateAppearances(to: savedTheme)
+        
         performFirstLaunchMigration()
         make_paper_sb_item()
         start_launchAgent()
@@ -110,9 +113,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 button.image = NSImage(systemSymbolName: "drop.fill", accessibilityDescription: "moonleaf")
             }
+            button.target = self
+            button.action = #selector(statusBarButtonClicked(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-
-        status_item?.menu = sb_item_menu()
     }
 
     func remove_sb_item() {
@@ -120,6 +124,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSStatusBar.system.removeStatusItem(item)
         }
         status_item = nil
+    }
+
+    @objc func statusBarButtonClicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            let menu = sb_item_menu()
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 5), in: sender)
+        } else {
+            show_manager()
+        }
     }
 
     @objc func show_manager() {
@@ -139,6 +153,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.titlebarAppearsTransparent = true
             window.hasShadow = true
 
+
             let useGlass = glassBackground
 
             if useGlass {
@@ -149,8 +164,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
             } else {
                 window.isOpaque = true
-                window.backgroundColor = NSColor(srgbRed: 0.08, green: 0.10, blue: 0.18, alpha: 0.95)
-                window.contentView = NSHostingView(rootView: contentView.font(Font(font_loader.regular(size: 13))))
+                window.backgroundColor = .mainSurface
+                window.contentView = NSHostingView(rootView: contentView.font(Font(font_loader.regular(size: 13))).ignoresSafeArea())
             }
 
             window.minSize = NSSize(width: 900, height: 600)
@@ -307,9 +322,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let wallpaper = sender.representedObject as? endup_wp else { return }
         let service = macpaperService()
         service.set_wp(wallpaper)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.status_item?.menu = self.sb_item_menu()
-        }
     }
 
     @objc func toggle_launchAgent() {
@@ -318,17 +330,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let is_agent_enabled = FileManager.default.fileExists(atPath: launchAgent.path)
         let service = macpaperService()
         service.wp_doPersist(!is_agent_enabled)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.status_item?.menu = self.sb_item_menu()
-        }
     }
 
     @objc func unset_wp() {
         let service = macpaperService()
         service.unset_wp()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.status_item?.menu = self.sb_item_menu()
-        }
     }
 
     @objc func open_manager() { show_mwin() }
@@ -360,6 +366,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.titleVisibility = .hidden
         window.contentView = NSHostingView(rootView: settingsView.font(Font(font_loader.regular(size: 13))))
         window.isReleasedWhenClosed = false
+
         
         _settingsWin = window
         NSApp.setActivationPolicy(.regular)
@@ -370,9 +377,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func refresh_wallpapers() {
         let service = macpaperService()
         service.fetch_wallpapers()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.status_item?.menu = self.sb_item_menu()
-        }
     }
 
     @objc func show_about() {
@@ -397,6 +401,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func updateAppearances(to theme: String) {
+        let appearance: NSAppearance?
+        if theme == "dark" {
+            appearance = NSAppearance(named: .darkAqua)
+        } else if theme == "light" {
+            appearance = NSAppearance(named: .aqua)
+        } else {
+            appearance = nil
+        }
+        
+        NSApp.appearance = appearance
+    }
 }
 
 extension AppDelegate: NSWindowDelegate {
@@ -444,3 +461,4 @@ struct MiniVolumeSlider: View {
         .padding(.horizontal, 8)
     }
 }
+
