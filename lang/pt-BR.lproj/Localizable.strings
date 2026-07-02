@@ -30,7 +30,7 @@
 "sb_open_mgr" = "Abrir Gerenciador";
 "sb_settings" = "Configurações";
 "sb_about" = "Sobre Petalia";
-"sb_about_text" = "Versão %@ (%@)\n\nO Gerenciador de Papéis de Parede em Vivo para macOS";
+"sb_about_text" = "Versão %@ (%@)\nO Gerenciador de Papéis de Parede em Vivo para macOS";
 "sb_about_github" = "GitHub";
 "sb_about_kofi" = "Apoiar no Ko-fi";
 "sb_perst_tooltip" = "Iniciar papel de parede automaticamente ao fazer login";

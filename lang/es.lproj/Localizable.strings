@@ -30,7 +30,7 @@
 "sb_open_mgr" = "Abrir app";
 "sb_settings" = "Ajustes";
 "sb_about" = "Acerca de Petalia";
-"sb_about_text" = "Versión %@ (%@)\n\nEl Gestor de Fondos para macOS";
+"sb_about_text" = "Versión %@ (%@)\nEl Gestor de Fondos para macOS";
 "sb_about_github" = "GitHub";
 "sb_about_kofi" = "Apoyar en Ko-fi";
 "sb_perst_tooltip" = "Iniciar fondo automáticamente al iniciar sesión";

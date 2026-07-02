@@ -30,7 +30,7 @@
 "sb_open_mgr" = "Manager öffnen";
 "sb_settings" = "Einstellungen";
 "sb_about" = "Über Petalia";
-"sb_about_text" = "Version %@ (%@)\n\nDer Live-Hintergrundbild-Manager für macOS";
+"sb_about_text" = "Version %@ (%@)\nDer Live-Hintergrundbild-Manager für macOS";
 "sb_about_github" = "GitHub";
 "sb_about_kofi" = "Auf Ko-fi unterstützen";
 "sb_perst_tooltip" = "Hintergrundbild automatisch beim Anmelden starten";

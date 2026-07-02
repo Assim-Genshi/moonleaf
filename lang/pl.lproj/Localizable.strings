@@ -30,7 +30,7 @@
 "sb_open_mgr" = "Otwórz Menedżera";
 "sb_settings" = "Ustawienia";
 "sb_about" = "O Petalia";
-"sb_about_text" = "Wersja %@ (%@)\n\nMenedżer Tapet dla macOS";
+"sb_about_text" = "Wersja %@ (%@)\nMenedżer Tapet dla macOS";
 "sb_about_github" = "GitHub";
 "sb_about_kofi" = "Wesprzyj na Ko-fi";
 "sb_perst_tooltip" = "Automatycznie włącz tapetę na starcie systemu";
