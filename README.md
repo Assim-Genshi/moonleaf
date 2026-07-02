@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/parkuoa/moonleaf"><img src="./artwork/png/petalia2.png" alt="Petalia" width="150"></a>
+  <a href="https://github.com/parkuoa/moonleaf"><img src="./artwork/png/icon (2).png" alt="Petalia" width="150"></a>
   <br>
   Petalia
   <br>
