@@ -9,10 +9,22 @@ import Foundation
 import Combine
 import AppKit
 
+@_silgen_name("system")
+@discardableResult
+private func c_system(_ command: UnsafePointer<CChar>?) -> Int32
+
+private func escapeShellArg(_ arg: String) -> String {
+    return "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
+}
+
 class macpaperService: NSObject, ObservableObject {
     @Published var wallpapers: [endup_wp] = []
     @Published var isLoading = false
-    @Published var current_wp: String?
+    @Published var current_wp: String? {
+        didSet {
+            UserDefaults.standard.set(current_wp, forKey: "moonleaf_current_wp")
+        }
+    }
     @Published var volume: Double = 0.5
     @Published var wp_is_agent: Bool = false
     @Published var ap_is_enabled: Bool = false
@@ -25,6 +37,8 @@ class macpaperService: NSObject, ObservableObject {
     @Published var shuffleEnabled: Bool = false
     @Published var previewWallpaper: endup_wp? = nil
     @Published var showPreview: Bool = false
+    @Published var isSelectionMode: Bool = false
+    @Published var selectedWallpapers: Set<UUID> = []
     @Published var shuffleInterval: ShuffleInterval = .oneHour
     @Published var importMethod: ImportMethod = .link
     @Published var currentPath: URL?
@@ -121,10 +135,8 @@ class macpaperService: NSObject, ObservableObject {
         
         guard FileManager.default.fileExists(atPath: glasswp_path) else { return }
         
-        let task = Process()
-        task.launchPath = glasswp_path
-        task.arguments = ["--daemon"]
-        task.launch()
+        let command = "\(escapeShellArg(glasswp_path)) --daemon &"
+        c_system(command)
     }
 
     func select_wp(_ wallpaper: endup_wp?) {
@@ -253,6 +265,10 @@ class macpaperService: NSObject, ObservableObject {
         if let intervalRaw = UserDefaults.standard.string(forKey: "moonleaf_shuffleInterval"),
            let interval = ShuffleInterval(rawValue: intervalRaw) {
             shuffleInterval = interval
+        }
+
+        if let savedWp = UserDefaults.standard.string(forKey: "moonleaf_current_wp") {
+            current_wp = savedWp
         }
     }
 
@@ -393,11 +409,13 @@ class macpaperService: NSObject, ObservableObject {
 
         guard isMoving || isStill else { return }
 
-        DispatchQueue.main.async { self.selected_wp = wallpaper }
+        DispatchQueue.main.async {
+            self.selected_wp = nil
+            self.current_wp = wallpaper.path
+        }
 
         copyWallpaperForScreensaver(wallpaper)
 
-        
         if isStill {
             let cliPath = Bundle.main.bundlePath + "/Contents/Resources/bin/wallpaper"
             if FileManager.default.fileExists(atPath: cliPath) {
@@ -405,17 +423,14 @@ class macpaperService: NSObject, ObservableObject {
                     guard let self = self else { return }
                     
                     self.postOverlayNotification(path: wallpaper.path)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        self.current_wp = wallpaper.path
+                    DispatchQueue.main.async {
                         self.screenWallpapers.removeAll()
                         self.saveScreenWallpapers()
                     }
                 }
             } else {
-                
                 self.postOverlayNotification(path: wallpaper.path)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.current_wp = wallpaper.path
+                DispatchQueue.main.async {
                     self.screenWallpapers.removeAll()
                     self.saveScreenWallpapers()
                 }
@@ -423,12 +438,9 @@ class macpaperService: NSObject, ObservableObject {
             return
         }
 
-        
-        
         self.postOverlayNotification(path: wallpaper.path)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.current_wp = wallpaper.path
+        DispatchQueue.main.async {
             self.screenWallpapers.removeAll()
             self.saveScreenWallpapers()
         }
@@ -444,15 +456,8 @@ class macpaperService: NSObject, ObservableObject {
     }
 
     private func checkIfGlasswpIsRunning() -> Bool {
-        let task = Process()
-        task.launchPath = "/usr/bin/pgrep"
-        task.arguments = ["-f", "glasswp"]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-        task.launch()
-        task.waitUntilExit()
-        return task.terminationStatus == 0
+        let status = c_system("pgrep -f glasswp > /dev/null 2>&1")
+        return (status >> 8) == 0
     }
 
     func set_wp_on_screen(_ wallpaper: endup_wp, screenIndex: Int) {
@@ -516,11 +521,7 @@ class macpaperService: NSObject, ObservableObject {
         current_wp = nil
         wp_is_agent = false
         
-        let killTask = Process()
-        killTask.launchPath = "/usr/bin/pkill"
-        killTask.arguments = ["-9", "-f", "glasswp"]
-        try? killTask.run()
-        killTask.waitUntilExit()
+        c_system("pkill -9 -f glasswp > /dev/null 2>&1")
         
         _exec([wrapped_obj, "--unset"]) { _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -544,11 +545,7 @@ class macpaperService: NSObject, ObservableObject {
         } else {
             let home = FileManager.default.homeDirectoryForCurrentUser
             let launchAgent = home.appendingPathComponent("Library/LaunchAgents/com.naomisphere.macpaper.wallpaper.plist")
-            let unload = Process()
-            unload.launchPath = "/bin/launchctl"
-            unload.arguments = ["unload", launchAgent.path]
-            try? unload.run()
-            unload.waitUntilExit()
+            c_system("launchctl unload \(escapeShellArg(launchAgent.path)) > /dev/null 2>&1")
             try? FileManager.default.removeItem(at: launchAgent)
             DispatchQueue.main.async { self.wp_is_agent = false }
         }
@@ -570,15 +567,9 @@ class macpaperService: NSObject, ObservableObject {
 
     private func _exec(_ arguments: [String], completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .background).async {
-            let task = Process()
-            task.launchPath = arguments[0]
-            task.arguments = Array(arguments.dropFirst())
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
-            task.launch()
-            task.waitUntilExit()
-            DispatchQueue.main.async { completion(task.terminationStatus == 0) }
+            let command = arguments.map { escapeShellArg($0) }.joined(separator: " ")
+            let status = c_system(command)
+            DispatchQueue.main.async { completion((status >> 8) == 0) }
         }
     }
 
@@ -589,15 +580,10 @@ class macpaperService: NSObject, ObservableObject {
             return
         }
         DispatchQueue.global(qos: .background).async {
-            let task = Process()
-            task.launchPath = cliPath
-            task.arguments = arguments
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
-            task.launch()
-            task.waitUntilExit()
-            DispatchQueue.main.async { completion(task.terminationStatus == 0) }
+            let cmdArgs = [cliPath] + arguments
+            let command = cmdArgs.map { escapeShellArg($0) }.joined(separator: " ")
+            let status = c_system(command)
+            DispatchQueue.main.async { completion((status >> 8) == 0) }
         }
     }
 

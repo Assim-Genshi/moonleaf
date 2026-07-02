@@ -85,6 +85,35 @@ struct FavoriteButton: View {
     }
 }
 
+struct DownloadedCheckButton: View {
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: {}) {
+            Image(systemName: "checkmark")
+                .font(Font(font_loader.bold(size: 13)))
+                .foregroundStyle(Color.accent)
+                .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                .scaleEffect(isHovered ? 1.15 : 1.0)
+                .frame(width: 32, height: 32)
+                .background {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            Circle()
+                                .stroke(.white.opacity(0.15), lineWidth: 0.5)
+                        }
+                }
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
 struct CardMenuButton: View {
     let isStillWallpaper: Bool
     @Binding var isMenuOpen: Bool
@@ -436,7 +465,15 @@ struct WallpaperCard: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            onTap()
+            if service.isSelectionMode {
+                if service.selectedWallpapers.contains(wallpaper.id) {
+                    service.selectedWallpapers.remove(wallpaper.id)
+                } else {
+                    service.selectedWallpapers.insert(wallpaper.id)
+                }
+            } else {
+                onTap()
+            }
         }
         .onAppear {
             service.refreshScreenCount()
@@ -481,7 +518,7 @@ struct WallpaperCard: View {
                     .foregroundStyle(.secondary)
             }
             
-            if isHovered || isActive || isMenuOpen {
+            if !service.isSelectionMode && (isHovered || isActive || isMenuOpen) {
                 overlayControls
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.95)),
@@ -495,10 +532,16 @@ struct WallpaperCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(
-                    cardIsSelected ? Color.blue.opacity(0.8) :
-                    isActive ? Color.green.opacity(0.8) : Color.primary.opacity(0.1), 
-                    lineWidth: cardIsSelected ? 3 : (isActive ? 2 : 1)
+                    (service.isSelectionMode ? (cardIsSelected ? Color.accent : Color.primary.opacity(0.1)) :
+                    (isActive ? Color.accent : (cardIsSelected ? Color.accent : Color.primary.opacity(0.1)))),
+                    style: StrokeStyle(
+                        lineWidth: (service.isSelectionMode ? (cardIsSelected ? 3 : 1) : (isActive ? 3 : (cardIsSelected ? 3 : 1))),
+                        lineCap: .round,
+                        dash: (!service.isSelectionMode && isActive) ? [6, 4] : []
+                    )
                 )
+                .animation(.easeInOut(duration: 0.25), value: cardIsSelected)
+                .animation(.easeInOut(duration: 0.25), value: isActive)
         }
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .onHover { hovering in
@@ -524,22 +567,6 @@ struct WallpaperCard: View {
             
             VStack {
                 HStack {
-                    if isActive {
-                        Circle()
-                            .fill(.green.opacity(0.9))
-                            .frame(width: 24, height: 24)
-                            .overlay {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                            .background {
-                                Circle()
-                                    .fill(.regularMaterial)
-                                    .frame(width: 28, height: 28)
-                            }
-                    }
-
                     FavoriteButton(
                         isFavorite: service.isFavorite(wallpaper),
                         action: { service.toggleFavorite(wallpaper) }
@@ -977,7 +1004,7 @@ private struct BrowseCardPreview: View {
             .allowsHitTesting(false)
 
             VStack {
-                HStack {
+                HStack(alignment: .center, spacing: 8) {
                     if item.provider == .pexels, let author = item.authorName, let url = item.authorURL {
                         Button(action: { NSWorkspace.shared.open(url) }) {
                             Text("by \(author)")
@@ -991,67 +1018,48 @@ private struct BrowseCardPreview: View {
                     }
 
                     Spacer()
+
+                    if isDownloaded {
+                        DownloadedCheckButton()
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 12)
 
                 Spacer()
                 
-                Button(action: {
-                    if !isDownloaded && !isDownloading {
+                if !isDownloaded && !isDownloading {
+                    Button(action: {
                         downloadWallpaper()
-                    }
-                }) {
-                    HStack(spacing: 6) {
-                        if isDownloaded {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 13, weight: .bold))
-                            Text("Downloaded")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                        } else if isDownloading {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                                .frame(width: 14, height: 14)
-                            Text("Downloading...")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                        } else {
+                    }) {
+                        HStack(spacing: 6) {
                             Image(systemName: "arrow.down")
                                 .font(.system(size: 13, weight: .medium))
                             Text("Download")
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
                         }
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(.thinMaterial)
-                            .overlay {
-                                if isDownloaded {
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.thinMaterial)
+                                .overlay {
                                     RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color.green.opacity(0.25))
-                                } else if isDownloading {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color.blue.opacity(0.15))
+                                        .stroke(.white.opacity(0.15), lineWidth: 0.5)
                                 }
-                            }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(.white.opacity(0.15), lineWidth: 0.5)
-                            }
-                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        }
+                        .scaleEffect(isDownloadButtonHovered ? 1.02 : 1.0)
                     }
-                    .scaleEffect(isDownloadButtonHovered ? 1.02 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .disabled(isDownloading || isDownloaded)
-                .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        isDownloadButtonHovered = hovering
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            isDownloadButtonHovered = hovering
+                        }
                     }
+                    .padding(.bottom, 12)
                 }
-                .padding(.bottom, 12)
             }
         }
     }
@@ -1281,8 +1289,11 @@ struct MaterialButtonStyle: ButtonStyle {
                 .padding(.vertical, 8)
                 .background {
                     Capsule()
-                        .fill(.thinMaterial)
-                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        .fill(.black.opacity(0.2))
+                        .overlay {
+                            Capsule()
+                                .stroke(.white.opacity(0.1), lineWidth: 0.5)
+                        }
                 }
                 .opacity(configuration.isPressed ? 0.85 : (isHovered ? 0.92 : 1.0))
                 .scaleEffect(configuration.isPressed ? 0.98 : (isHovered ? 1.02 : 1.0))

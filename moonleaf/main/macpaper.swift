@@ -26,6 +26,7 @@ struct macpaper: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var status_item: NSStatusItem?
+    var sb_menu: NSMenu?
     var _mwin: NSWindow?
     var _settingsWin: NSWindow?
     var _mwin_open = false
@@ -117,6 +118,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.action = #selector(statusBarButtonClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+
+        update_sb_menu()
+    }
+
+    func update_sb_menu() {
+        sb_menu = sb_item_menu()
     }
 
     func remove_sb_item() {
@@ -129,8 +136,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func statusBarButtonClicked(_ sender: NSStatusBarButton) {
         let event = NSApp.currentEvent
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
-            let menu = sb_item_menu()
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 5), in: sender)
+            if let menu = sb_menu {
+                menu.delegate = self
+                status_item?.menu = menu
+                status_item?.button?.performClick(nil)
+            }
         } else {
             show_manager()
         }
@@ -322,6 +332,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let wallpaper = sender.representedObject as? endup_wp else { return }
         let service = macpaperService()
         service.set_wp(wallpaper)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.update_sb_menu()
+        }
     }
 
     @objc func toggle_launchAgent() {
@@ -330,11 +343,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let is_agent_enabled = FileManager.default.fileExists(atPath: launchAgent.path)
         let service = macpaperService()
         service.wp_doPersist(!is_agent_enabled)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.update_sb_menu()
+        }
     }
 
     @objc func unset_wp() {
         let service = macpaperService()
         service.unset_wp()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.update_sb_menu()
+        }
     }
 
     @objc func open_manager() { show_mwin() }
@@ -377,6 +396,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func refresh_wallpapers() {
         let service = macpaperService()
         service.fetch_wallpapers()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.update_sb_menu()
+        }
     }
 
     @objc func show_about() {
@@ -459,6 +481,12 @@ struct MiniVolumeSlider: View {
                 .frame(width: 30, alignment: .trailing)
         }
         .padding(.horizontal, 8)
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuDidClose(_ menu: NSMenu) {
+        status_item?.menu = nil
     }
 }
 

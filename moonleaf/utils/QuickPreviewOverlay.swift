@@ -30,6 +30,10 @@ struct QuickPreviewOverlay: View {
     @State private var isImageLoading = false
     @State private var imageLoadFailed = false
     @Namespace private var tabAnimation
+    @State private var isDownloading = false
+    @State private var downloadProgress: Double = 0
+    @State private var downloadTask: URLSessionDownloadTask?
+    @State private var progressObservation: NSKeyValueObservation?
     @EnvironmentObject private var service: macpaperService
     
     @AppStorage("clockFontSize") private var clockFontSize: Double = 120.0
@@ -290,6 +294,38 @@ struct QuickPreviewOverlay: View {
                             }
                         }
                         .buttonStyle(MaterialButtonStyle())
+                    } else {
+                        Divider().frame(height: 24).background(Color.white.opacity(0.2))
+                        
+                        if isDownloading {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                                    Circle()
+                                        .trim(from: 0, to: max(0.05, downloadProgress))
+                                        .stroke(Color.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                                        .rotationEffect(.degrees(-90))
+                                }
+                                .frame(width: 14, height: 14)
+                                
+                                Text("\(Int(downloadProgress * 100))%")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        } else {
+                            Button(action: downloadWallpaper) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text("Download")
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                }
+                            }
+                            .buttonStyle(MaterialButtonStyle())
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -356,6 +392,8 @@ struct QuickPreviewOverlay: View {
         .onDisappear {
             player?.pause()
             player = nil
+            downloadTask?.cancel()
+            progressObservation?.invalidate()
         }
         .onReceive(timer) { _ in
             currentTime = Date()
@@ -654,6 +692,79 @@ struct QuickPreviewOverlay: View {
         }
         .frame(width: 290)
         .padding(.vertical, 8)
+    }
+
+    private func downloadWallpaper() {
+        guard let downloadURL = URL(string: wallpaper.path) else { return }
+        
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let wpStorageDir = home.appendingPathComponent(".local/share/paper/wallpaper")
+        
+        do {
+            try FileManager.default.createDirectory(at: wpStorageDir, withIntermediateDirectories: true)
+            
+            let fileName = "\(wallpaper.name)-\(downloadURL.lastPathComponent)"
+            let destinationURL = wpStorageDir.appendingPathComponent(fileName)
+            
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                return
+            }
+            
+            isDownloading = true
+            downloadProgress = 0
+            
+            downloadTask = URLSession.shared.downloadTask(with: downloadURL) { tempURL, response, error in
+                DispatchQueue.main.async {
+                    self.isDownloading = false
+                    self.progressObservation?.invalidate()
+                    self.progressObservation = nil
+                }
+                
+                if let _ = error {
+                    return
+                }
+                
+                guard let tempURL = tempURL else { return }
+                
+                do {
+                    if FileManager.default.fileExists(atPath: destinationURL.path) {
+                        try? FileManager.default.removeItem(at: destinationURL)
+                    }
+                    try FileManager.default.moveItem(at: tempURL, to: destinationURL)
+                    
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("WallpaperDownloadCompleted"),
+                            object: nil
+                        )
+                        // Update preview wallpaper to the local path
+                        let newWp = endup_wp(
+                            id: wallpaper.id,
+                            name: wallpaper.name,
+                            path: destinationURL.path,
+                            preview: wallpaper.preview,
+                            createdDate: wallpaper.createdDate,
+                            fileSize: wallpaper.fileSize
+                        )
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            service.previewWallpaper = newWp
+                        }
+                    }
+                } catch {}
+            }
+            
+            progressObservation = downloadTask?.progress.observe(\.fractionCompleted) { progress, _ in
+                DispatchQueue.main.async {
+                    self.downloadProgress = progress.fractionCompleted
+                }
+            }
+            
+            downloadTask?.resume()
+            
+        } catch {
+            isDownloading = false
+            downloadProgress = 0
+        }
     }
 }
 

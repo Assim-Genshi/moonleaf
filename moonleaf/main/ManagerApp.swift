@@ -37,6 +37,7 @@ struct ManagerView: View {
     @State private var show_wp_util_overlay = false
     @State private var overlay_chosen_wp: endup_wp? = nil
     @State private var showWpActionsDropdown = false
+    @State private var isSelectHovered = false
     private let menuHandler = MenuHandler()
     
     var body: some View {
@@ -44,8 +45,8 @@ struct ManagerView: View {
             GeometryReader { geo in
                 let width = geo.size.width
                 let spacing: CGFloat = 20
-                let columnCount = max(2, Int((width - 32) / (260 + spacing)))
-                let colWidth = (width - 32 - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount)
+                let columnCount = max(2, Int((width - 48) / (260 + spacing)))
+                let colWidth = (width - 48 - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount)
                 let displayed = service.showFavoritesOnly
                     ? service.wallpapers.filter { service.isFavorite($0) }
                     : service.wallpapers
@@ -125,7 +126,7 @@ struct ManagerView: View {
                                         }
                                     }
                                 )
-                                .padding(.horizontal, 16)
+                                .padding(.horizontal, 24)
                                 .padding(.bottom, 32)
                                 .padding(.top, 8)
                                 .transition(.asymmetric(
@@ -143,7 +144,7 @@ struct ManagerView: View {
             .animation(.easeInOut(duration: 0.4), value: service.isLoading)
             .animation(.easeInOut(duration: 0.4), value: service.wallpapers.isEmpty)
 
-            if show_wp_util_overlay, let wallpaper = overlay_chosen_wp {
+            if show_wp_util_overlay && !service.isSelectionMode, let wallpaper = overlay_chosen_wp {
                 WPCUtilOverlay(
                     wallpaper: wallpaper,
                     onClose: {
@@ -157,10 +158,69 @@ struct ManagerView: View {
                 .transition(.opacity)
                 .zIndex(1)
             }
+
+            if service.isSelectionMode {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 16) {
+                        Text("\(service.selectedWallpapers.count) items selected")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.9))
+                        
+                        Divider().frame(height: 24).background(Color.white.opacity(0.2))
+                        
+                        // Favorite button
+                        Button(action: {
+                            toggleFavoriteForSelected()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Favorite")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            }
+                        }
+                        .buttonStyle(MaterialButtonStyle())
+                        .disabled(service.selectedWallpapers.isEmpty)
+                        
+                        Divider().frame(height: 24).background(Color.white.opacity(0.2))
+                        
+                        // Delete button
+                        Button(action: {
+                            deleteSelected()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Delete")
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            }
+                        }
+                        .buttonStyle(MaterialButtonStyle())
+                        .disabled(service.selectedWallpapers.isEmpty)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background {
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                            .overlay {
+                                Capsule()
+                                    .stroke(.white.opacity(0.15), lineWidth: 0.5)
+                            }
+                            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                    }
+                    .padding(.bottom, 32)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(2)
+            }
         }
         .onAppear {
             service.fetch_wallpapers()
             menuHandler.service = service
+            service.isSelectionMode = false
+            service.selectedWallpapers.removeAll()
         }
         .onChange(of: service.selected_wp) { selected in
             withAnimation(.easeInOut(duration: 0.3)) {
@@ -197,15 +257,55 @@ struct ManagerView: View {
             
             Spacer()
             
-            Button(action: { showAddPopover.toggle() }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                    Text("Add")
-                        .font(.system(size: 18, weight: .bold))
+            HStack(spacing: 12) {
+                // Select / Cancel button
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        service.isSelectionMode.toggle()
+                        if service.isSelectionMode {
+                            service.select_wp(nil)
+                        } else {
+                            service.selectedWallpapers.removeAll()
+                        }
+                    }
+                }) {
+                    Text(service.isSelectionMode ? "Cancel" : "Select")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(service.isSelectionMode ? Color.red : Color.primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background {
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                                .overlay {
+                                    Capsule()
+                                        .stroke(.primary.opacity(0.08), lineWidth: 0.5)
+                                }
+                        }
                 }
+                .buttonStyle(.plain)
+                .scaleEffect(isSelectHovered ? 1.02 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isSelectHovered = hovering
+                    }
+                }
+                .help(service.isSelectionMode ? "Cancel Selection" : "Select Wallpapers")
+
+                // Add button
+                Button(action: { showAddPopover.toggle() }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 16, height: 16)
+                        .padding(8)
+                        .background {
+                            Circle()
+                                .fill(Color.accent)
+                        }
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(AccentButtonStyle())
             .popover(isPresented: $showAddPopover, arrowEdge: .bottom) {
                 VStack(spacing: 4) {
                     Button(action: {
@@ -485,6 +585,44 @@ struct ManagerView: View {
             print("Error renaming file: \(error)")
         }
     }
+
+    private func toggleFavoriteForSelected() {
+        let selectedWps = service.wallpapers.filter { service.selectedWallpapers.contains($0.id) }
+        let allAreFavorites = selectedWps.allSatisfy { service.isFavorite($0) }
+        
+        for wp in selectedWps {
+            let isFav = service.isFavorite(wp)
+            if allAreFavorites {
+                if isFav {
+                    service.toggleFavorite(wp)
+                }
+            } else {
+                if !isFav {
+                    service.toggleFavorite(wp)
+                }
+            }
+        }
+        
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.update_sb_menu()
+    }
+    
+    private func deleteSelected() {
+        let selectedWps = service.wallpapers.filter { service.selectedWallpapers.contains($0.id) }
+        for wp in selectedWps {
+            do {
+                try FileManager.default.trashItem(at: URL(fileURLWithPath: wp.path), resultingItemURL: nil)
+            } catch {
+                print("Error trashing \(wp.name): \(error)")
+            }
+        }
+        service.selectedWallpapers.removeAll()
+        service.isSelectionMode = false
+        service.fetch_wallpapers()
+        
+        let appDelegate = NSApplication.shared.delegate as? AppDelegate
+        appDelegate?.update_sb_menu()
+    }
     
     private func export_wp(_ wallpaper: endup_wp, custom: Bool = false) {
         let sourceURL = URL(fileURLWithPath: wallpaper.path)
@@ -581,7 +719,7 @@ private struct LazyLibraryMasonryContent: View {
                             WallpaperCard(
                                 wallpaper: wallpaper,
                                 isActive: service.current_wp == wallpaper.path,
-                                cardIsSelected: service.selected_wp?.id == wallpaper.id,
+                                cardIsSelected: service.isSelectionMode ? service.selectedWallpapers.contains(wallpaper.id) : (service.selected_wp?.id == wallpaper.id),
                                 onSelect: { onSelect(wallpaper) },
                                 onTap: { onTap(wallpaper) },
                                 onDelete: { onDelete(wallpaper) },

@@ -7,6 +7,14 @@
 
 import SwiftUI
 
+@_silgen_name("system")
+@discardableResult
+private func c_system(_ command: UnsafePointer<CChar>?) -> Int32
+
+private func escapeShellArg(_ arg: String) -> String {
+    return "'" + arg.replacingOccurrences(of: "'", with: "'\\''") + "'"
+}
+
 struct SettingsView: View {
     @EnvironmentObject private var service: macpaperService
     @State private var selectedTab: SettingsTab = .general
@@ -71,7 +79,7 @@ struct SettingsView: View {
             HStack(spacing: 16) {
                 Image(systemName: "gearshape.fill")
                     .font(Font(font_loader.regular(size: 24)))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.accent)
 
                 Text(NSLocalizedString("settings", comment: "Settings"))
                     .font(Font(font_loader.bold(size: 22)))
@@ -97,9 +105,10 @@ struct SettingsView: View {
                         .padding(.vertical, 10)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
-                                .fill(selectedTab == tab ? Color.blue : Color.clear)
+                                .fill(selectedTab == tab ? Color.accent : Color.clear)
                         )
                         .foregroundStyle(selectedTab == tab ? .white : .secondary)
+                        .contentShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
                 }
@@ -322,22 +331,37 @@ struct SettingsView: View {
                         Text(NSLocalizedString("settings_theme", value: "App Theme", comment: "App Theme"))
                             .font(Font(font_loader.regular(size: 14)))
                         Spacer()
-                        Picker("", selection: $appTheme) {
-                            Text(NSLocalizedString("settings_theme_system", value: "System", comment: "System")).tag("system")
-                            Text(NSLocalizedString("settings_theme_light", value: "Light", comment: "Light")).tag("light")
-                            Text(NSLocalizedString("settings_theme_dark", value: "Dark", comment: "Dark")).tag("dark")
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                        .frame(width: 180)
+                        SegmentSelector(
+                            options: ["system", "light", "dark"],
+                            selection: $appTheme,
+                            displayName: { theme in
+                                switch theme {
+                                case "system": return NSLocalizedString("settings_theme_system", value: "System", comment: "System")
+                                case "light": return NSLocalizedString("settings_theme_light", value: "Light", comment: "Light")
+                                case "dark": return NSLocalizedString("settings_theme_dark", value: "Dark", comment: "Dark")
+                                default: return theme
+                                }
+                            }
+                        )
                     }
-                    
-                    Divider().padding(.vertical, 4)
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
                     
                     SToggle(
                         title: NSLocalizedString("settings_glass_bg", comment: "Glass Background"),
                         description: NSLocalizedString("settings_glass_bg_desc", comment: ""),
                         isOn: $glassBackground
                     )
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 11))
+                        Text(NSLocalizedString("settings_appearance_restart_note", value: "Restart the app to apply theme or background changes.", comment: ""))
+                            .font(Font(font_loader.regular(size: 11)))
+                    }
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 4)
+                    .padding(.top, 2)
                 }
             }
 
@@ -348,16 +372,14 @@ struct SettingsView: View {
 
                     Spacer()
 
-                    Picker("", selection: Binding(
-                        get: { service.localSort },
-                        set: { service.setLocalSort($0) }
-                    )) {
-                        ForEach(macpaperService.LocalSortMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    .pickerStyle(MenuPickerStyle())
-                    .frame(width: 160)
+                    SegmentSelector(
+                        options: macpaperService.LocalSortMode.allCases,
+                        selection: Binding(
+                            get: { service.localSort },
+                            set: { service.setLocalSort($0) }
+                        ),
+                        displayName: { $0.displayName }
+                    )
                 }
                 .padding()
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
@@ -401,16 +423,25 @@ struct SettingsView: View {
 
             Section(title: "Import Method") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Choose how wallpapers are added to your library.")
-                        .font(Font(font_loader.regular(size: 12)))
-                        .foregroundColor(.secondary)
-
-                    Picker("", selection: $service.importMethod) {
-                        Text("Link/Reference").tag(macpaperService.ImportMethod.link)
-                        Text("Copy").tag(macpaperService.ImportMethod.copy)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Choose how wallpapers are added to your library.")
+                                .font(Font(font_loader.regular(size: 12)))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        SegmentSelector(
+                            options: macpaperService.ImportMethod.allCases,
+                            selection: $service.importMethod,
+                            displayName: { method in
+                                switch method {
+                                case .link: return "Link/Reference"
+                                case .copy: return "Copy"
+                                }
+                            }
+                        )
+                        .onChange(of: service.importMethod) { _ in service.saveSettings() }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: service.importMethod) { _ in service.saveSettings() }
                 }
                 .padding()
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
@@ -448,16 +479,14 @@ struct SettingsView: View {
 
                             Spacer()
 
-                            Picker("", selection: Binding(
-                                get: { service.shuffleInterval },
-                                set: { service.setShuffleInterval($0) }
-                            )) {
-                                ForEach(macpaperService.ShuffleInterval.allCases, id: \.self) { interval in
-                                    Text(interval.displayName).tag(interval)
-                                }
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                            .frame(width: 160)
+                            SegmentSelector(
+                                options: macpaperService.ShuffleInterval.allCases,
+                                selection: Binding(
+                                    get: { service.shuffleInterval },
+                                    set: { service.setShuffleInterval($0) }
+                                ),
+                                displayName: { $0.displayName }
+                            )
                         }
                         .padding(.horizontal, 16)
                         .transition(.opacity.combined(with: .move(edge: .top)))
@@ -467,31 +496,48 @@ struct SettingsView: View {
 
             Section(title: "Playback Effects") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Wallpaper Scaling")
-                        .font(Font(font_loader.regular(size: 14)))
-                    
-                    Picker("", selection: $scalingMode) {
-                        Text("Fill Screen").tag("fill")
-                        Text("Fit to Screen").tag("fit")
-                        Text("Stretch to Fill").tag("stretch")
-                        Text("Center").tag("center")
-                        Text("Tile").tag("tile")
+                    HStack {
+                        Text("Wallpaper Scaling")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
+                        SegmentSelector(
+                            options: ["fill", "fit", "stretch", "center", "tile"],
+                            selection: $scalingMode,
+                            displayName: { mode in
+                                switch mode {
+                                case "fill": return "Fill Screen"
+                                case "fit": return "Fit to Screen"
+                                case "stretch": return "Stretch to Fill"
+                                case "center": return "Center"
+                                case "tile": return "Tile"
+                                default: return mode
+                                }
+                            }
+                        )
+                        .onChange(of: scalingMode) { _ in saveVisualizerSettings() }
                     }
-                    .pickerStyle(MenuPickerStyle())
-                    .onChange(of: scalingMode) { _ in saveVisualizerSettings() }
                     
-                    Text("Video Filter")
-                        .font(Font(font_loader.regular(size: 14)))
-                        .padding(.top, 8)
+                    Divider().padding(.vertical, 4)
                     
-                    Picker("", selection: $videoFilter) {
-                        Text("None").tag("none")
-                        Text("Grayscale").tag("grayscale")
-                        Text("Invert").tag("invert")
-                        Text("Sepia").tag("sepia")
+                    HStack {
+                        Text("Video Filter")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
+                        SegmentSelector(
+                            options: ["none", "grayscale", "invert", "sepia"],
+                            selection: $videoFilter,
+                            displayName: { filter in
+                                switch filter {
+                                case "none": return "None"
+                                case "grayscale": return "Grayscale"
+                                case "invert": return "Invert"
+                                case "sepia": return "Sepia"
+                                default: return filter
+                                }
+                            }
+                        )
+                        .onChange(of: videoFilter) { _ in saveVisualizerSettings() }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: videoFilter) { _ in saveVisualizerSettings() }
                 }
                 .padding()
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
@@ -499,40 +545,63 @@ struct SettingsView: View {
 
             Section(title: "Audio Visualizer (beta)") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Visualizer Mode")
-                        .font(Font(font_loader.regular(size: 14)))
-
-                    Picker("", selection: $visualizer_mode) {
-                        Text("Disabled").tag("disabled")
-                        Text("Wallpaper Audio").tag("wallpaper")
+                    HStack {
+                        Text("Visualizer Mode")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
+                        SegmentSelector(
+                            options: ["disabled", "wallpaper"],
+                            selection: $visualizer_mode,
+                            displayName: { mode in
+                                switch mode {
+                                case "disabled": return "Disabled"
+                                case "wallpaper": return "Wallpaper Audio"
+                                default: return mode
+                                }
+                            }
+                        )
+                        .onChange(of: visualizer_mode) { _ in saveVisualizerSettings() }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: visualizer_mode) { _ in saveVisualizerSettings() }
 
-                    Text("Color Mode")
-                        .font(Font(font_loader.regular(size: 14)))
-                        .padding(.top, 8)
+                    Divider().padding(.vertical, 4)
 
-                    Picker("", selection: $visualizer_colorMode) {
-                        Text("Rainbow").tag("rainbow")
-                        Text("Custom").tag("custom")
+                    HStack {
+                        Text("Color Mode")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
+                        SegmentSelector(
+                            options: ["rainbow", "custom"],
+                            selection: $visualizer_colorMode,
+                            displayName: { mode in
+                                switch mode {
+                                case "rainbow": return "Rainbow"
+                                case "custom": return "Custom"
+                                default: return mode
+                                }
+                            }
+                        )
+                        .onChange(of: visualizer_colorMode) { _ in saveVisualizerSettings() }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: visualizer_colorMode) { _ in saveVisualizerSettings() }
 
                     if visualizer_colorMode == "custom" {
+                        Divider().padding(.vertical, 4)
                         HStack {
                             Text("Color:")
+                                .font(Font(font_loader.regular(size: 14)))
+                            Spacer()
                             TextField("#FF00FF", text: $visualizer_customColor)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 100)
                                 .onChange(of: visualizer_customColor) { _ in saveVisualizerSettings() }
                         }
-                        .padding(.top, 4)
                     }
+
+                    Divider().padding(.vertical, 4)
 
                     HStack {
                         Text("Transparency:")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
                         Slider(value: $visualizer_transparency, in: 0.1...1.0, step: 0.05)
                             .frame(width: 150)
                             .onChange(of: visualizer_transparency) { _ in saveVisualizerSettings() }
@@ -540,26 +609,27 @@ struct SettingsView: View {
                             .font(Font(font_loader.regular(size: 12)))
                             .frame(width: 35)
                     }
-                    .padding(.top, 8)
+
+                    Divider().padding(.vertical, 4)
 
                     HStack {
                         Text("Bar Count:")
-                        Picker("", selection: $visualizer_barCount) {
-                            Text("32").tag(32)
-                            Text("48").tag(48)
-                            Text("64").tag(64)
-                            Text("80").tag(80)
-                            Text("96").tag(96)
-                        }
-                        .pickerStyle(MenuPickerStyle())
-                        .frame(width: 80)
-                        .onChange(of: visualizer_barCount) { _ in saveVisualizerSettings() }
+                            .font(Font(font_loader.regular(size: 14)))
                         Spacer()
+                        SegmentSelector(
+                            options: [32, 48, 64, 80, 96],
+                            selection: $visualizer_barCount,
+                            displayName: { "\($0)" }
+                        )
+                        .onChange(of: visualizer_barCount) { _ in saveVisualizerSettings() }
                     }
-                    .padding(.top, 8)
+
+                    Divider().padding(.vertical, 4)
 
                     HStack {
                         Text("Max Height:")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
                         Slider(value: $visualizer_maxHeight, in: 0.1...1.0, step: 0.05)
                             .frame(width: 150)
                             .onChange(of: visualizer_maxHeight) { _ in saveVisualizerSettings() }
@@ -567,10 +637,13 @@ struct SettingsView: View {
                             .font(Font(font_loader.regular(size: 12)))
                             .frame(width: 35)
                     }
-                    .padding(.top, 4)
+
+                    Divider().padding(.vertical, 4)
 
                     HStack {
                         Text("Min Height:")
+                            .font(Font(font_loader.regular(size: 14)))
+                        Spacer()
                         Slider(value: $visualizer_minHeight, in: 1.0...20.0, step: 1.0)
                             .frame(width: 150)
                             .onChange(of: visualizer_minHeight) { _ in saveVisualizerSettings() }
@@ -578,7 +651,6 @@ struct SettingsView: View {
                             .font(Font(font_loader.regular(size: 12)))
                             .frame(width: 35)
                     }
-                    .padding(.top, 4)
                 }
                 .padding()
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
@@ -775,18 +847,13 @@ struct SettingsView: View {
                     at: launchAgent.deletingLastPathComponent(),
                     withIntermediateDirectories: true)
                 try plist.write(to: launchAgent, atomically: true, encoding: .utf8)
-                let load = Process()
-                load.launchPath = "/bin/launchctl"
-                load.arguments = ["load", launchAgent.path]
-                load.launch()
-                load.waitUntilExit()
+                let status = c_system("launchctl load \(escapeShellArg(launchAgent.path))")
+                if (status >> 8) != 0 {
+                    autoStartEnabled = false
+                }
             } catch { autoStartEnabled = false }
         } else {
-            let unload = Process()
-            unload.launchPath = "/bin/launchctl"
-            unload.arguments = ["unload", launchAgent.path]
-            try? unload.run()
-            unload.waitUntilExit()
+            c_system("launchctl unload \(escapeShellArg(launchAgent.path)) > /dev/null 2>&1")
             try? FileManager.default.removeItem(at: launchAgent)
         }
     }
@@ -916,7 +983,7 @@ struct SToggle: View {
             }
             Spacer()
             Toggle("", isOn: $isOn)
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                .toggleStyle(SwitchToggleStyle(tint: Color.accent))
                 .labelsHidden()
         }
         .padding()
