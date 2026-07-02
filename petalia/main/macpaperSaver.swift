@@ -1,6 +1,6 @@
 //
 //  macpaperSaver.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -35,6 +35,7 @@ class macpaperSaverView: ScreenSaverView {
     private func loadWallpaperPath() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let dirs = [
+            home.appendingPathComponent("Library/Application Support/petalia"),
             home.appendingPathComponent("Library/Application Support/moonleaf"),
             home.appendingPathComponent("Library/Application Support/macpaper"),
         ]

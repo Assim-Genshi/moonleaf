@@ -1,6 +1,6 @@
 //
 //  macpaper.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -69,28 +69,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let fm = FileManager.default
         
+        let petaliaConfig = home.appendingPathComponent(".config/petalia")
         let moonleafConfig = home.appendingPathComponent(".config/moonleaf")
         let oldConfig = home.appendingPathComponent(".local/share/macpaper")
 
-        try? fm.createDirectory(at: moonleafConfig, withIntermediateDirectories: true)
-
-        let newSettings = moonleafConfig.appendingPathComponent("settings.json")
-        let oldSettings = oldConfig.appendingPathComponent("settings.json")
-        
-        if !fm.fileExists(atPath: newSettings.path) && fm.fileExists(atPath: oldSettings.path) {
-            let items = (try? fm.contentsOfDirectory(at: oldConfig, includingPropertiesForKeys: nil)) ?? []
-            for item in items {
-                let dest = moonleafConfig.appendingPathComponent(item.lastPathComponent)
-                if !fm.fileExists(atPath: dest.path) {
-                    try? fm.createSymbolicLink(at: dest, withDestinationURL: item)
+        if !fm.fileExists(atPath: petaliaConfig.path) {
+            if fm.fileExists(atPath: moonleafConfig.path) {
+                try? fm.copyItem(at: moonleafConfig, to: petaliaConfig)
+            } else if fm.fileExists(atPath: oldConfig.path) {
+                try? fm.createDirectory(at: petaliaConfig, withIntermediateDirectories: true)
+                let items = (try? fm.contentsOfDirectory(at: oldConfig, includingPropertiesForKeys: nil)) ?? []
+                for item in items {
+                    let dest = petaliaConfig.appendingPathComponent(item.lastPathComponent)
+                    if !fm.fileExists(atPath: dest.path) {
+                        try? fm.createSymbolicLink(at: dest, withDestinationURL: item)
+                    }
                 }
             }
         }
+
+        try? fm.createDirectory(at: petaliaConfig, withIntermediateDirectories: true)
     }
 
     func start_launchAgent() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let launchAgent = home.appendingPathComponent("Library/LaunchAgents/com.naomisphere.moonleaf.wallpaper.plist")
+        let launchAgent = home.appendingPathComponent("Library/LaunchAgents/com.naomisphere.petalia.wallpaper.plist")
 
         if FileManager.default.fileExists(atPath: launchAgent.path) {
             let service = macpaperService()
@@ -106,13 +109,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         status_item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = status_item?.button {
-            if let resourcePath = Bundle.main.path(forResource: "StatusBarIcon", ofType: "png"),
-               let iconImage = NSImage(contentsOfFile: resourcePath) {
+            if let iconImage = NSImage(named: "petalia") {
+                iconImage.size = NSSize(width: 18, height: 18)
+                iconImage.isTemplate = true
+                button.image = iconImage
+            } else if let resourcePath = Bundle.main.path(forResource: "StatusBarIcon", ofType: "png"),
+                      let iconImage = NSImage(contentsOfFile: resourcePath) {
                 iconImage.size = NSSize(width: 18, height: 18)
                 iconImage.isTemplate = false
                 button.image = iconImage
             } else {
-                button.image = NSImage(systemSymbolName: "drop.fill", accessibilityDescription: "moonleaf")
+                button.image = NSImage(systemSymbolName: "drop.fill", accessibilityDescription: "Petalia")
             }
             button.target = self
             button.action = #selector(statusBarButtonClicked(_:))
@@ -158,7 +165,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             window.isReleasedWhenClosed = false
             window.center()
-            window.title = "moonleaf"
+            window.title = "Petalia"
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
             window.hasShadow = true
@@ -307,12 +314,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
-        let aboutItem = NSMenuItem(title: NSLocalizedString("sb_about", comment: "About moonleaf"), action: #selector(show_about), keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: NSLocalizedString("sb_about", comment: "About Petalia"), action: #selector(show_about), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
         menu.addItem(NSMenuItem.separator())
 
-        let quitItem = NSMenuItem(title: NSLocalizedString("sb_quit", comment: "Quit moonleaf"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: NSLocalizedString("sb_quit", comment: "Quit Petalia"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
         return menu
@@ -406,7 +413,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
 
         let alert = NSAlert()
-        alert.messageText = "moonleaf"
+        alert.messageText = "Petalia"
         alert.informativeText = String(format: NSLocalizedString("sb_about_text", comment: ""), version, build)
         alert.alertStyle = .informational
         alert.addButton(withTitle: NSLocalizedString("sb_about_github", comment: "GitHub"))

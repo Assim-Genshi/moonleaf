@@ -1,6 +1,6 @@
 //
 //  glasswp.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -380,7 +380,7 @@ final class ScreenPlayer {
 
     private func readVolume() -> Double {
         let volFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/moonleaf/volume")
+            .appendingPathComponent(".config/petalia/volume")
         if let data = try? Data(contentsOf: volFile),
            let str = String(data: data, encoding: .utf8),
            let intVal = Int(str.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -463,16 +463,16 @@ class GlasswpApp: NSObject, NSApplicationDelegate {
     private func registerNotifications() {
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleVolumeChange(_:)),
-            name: Notification.Name("com.naomisphere.moonleaf.volumeChanged"), object: nil)
+            name: Notification.Name("com.naomisphere.petalia.volumeChanged"), object: nil)
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleVizSettingsChange),
-            name: Notification.Name("com.naomisphere.moonleaf.visualizerSettingsChanged"), object: nil)
+            name: Notification.Name("com.naomisphere.petalia.visualizerSettingsChanged"), object: nil)
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleAutoPause(_:)),
-            name: Notification.Name("com.naomisphere.moonleaf.autoPauseChanged"), object: nil)
+            name: Notification.Name("com.naomisphere.petalia.autoPauseChanged"), object: nil)
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleChangeWallpaper(_:)),
-            name: Notification.Name("com.naomisphere.moonleaf.changeWallpaper"), object: nil)
+            name: Notification.Name("com.naomisphere.petalia.changeWallpaper"), object: nil)
 
         
         NotificationCenter.default.addObserver(
@@ -561,7 +561,7 @@ class GlasswpApp: NSObject, NSApplicationDelegate {
 
     private func loadVisualizerSettings() {
         let settingsFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/moonleaf/settings.json")
+            .appendingPathComponent(".config/petalia/settings.json")
         guard FileManager.default.fileExists(atPath: settingsFile.path),
               let data = try? Data(contentsOf: settingsFile),
               let settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }

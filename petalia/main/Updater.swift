@@ -1,6 +1,6 @@
 //
 //  Updater.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -19,7 +19,7 @@ class Updater: ObservableObject {
     private var baseUrl: String {
         let defaultUrl = "https://raw.githubusercontent.com/parkuoa/moonleaf/main"
         let serverFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/macpaper/update_server")
+            .appendingPathComponent(".local/share/petalia/update_server")
         
         if FileManager.default.fileExists(atPath: serverFile.path),
            let server = try? String(contentsOf: serverFile) {
@@ -35,7 +35,7 @@ class Updater: ObservableObject {
     private var apiBaseUrl: String {
         let defaultUrl = "https://api.github.com/repos/parkuoa/moonleaf"
         let serverFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/macpaper/update_server")
+            .appendingPathComponent(".local/share/petalia/update_server")
         
         if FileManager.default.fileExists(atPath: serverFile.path),
            let server = try? String(contentsOf: serverFile) {
@@ -118,20 +118,23 @@ if [ "$LATEST" != "$CURRENT" ]; then
     C_TMPDIR="$2/.tmp"
     mkdir -p "$C_TMPDIR"
 
-    LATEST_URL="$SERVER_URL/releases/download/$LATEST/moonleaf.dmg"
-    DMG_PATH="$C_TMPDIR/moonleaf.dmg"
+    LATEST_URL="$SERVER_URL/releases/download/$LATEST/Petalia.dmg"
+    DMG_PATH="$C_TMPDIR/Petalia.dmg"
 
     curl -L -o "$DMG_PATH" "$LATEST_URL"
 
-    VOLUME_NAME="moonleaf"
+    VOLUME_NAME="Petalia"
 
     if [ -d "/Volumes/$VOLUME_NAME" ]; then
         hdiutil detach "/Volumes/$VOLUME_NAME" -force
     fi
 
     hdiutil attach "$DMG_PATH"
-    cp -rf "/Volumes/$VOLUME_NAME/moonleaf.app" "/Applications/"
+    cp -rf "/Volumes/$VOLUME_NAME/Petalia.app" "/Applications/"
 
+    if [ -d "/Applications/moonleaf.app" ]; then
+        rm -rf "/Applications/moonleaf.app"
+    fi
     if [ -d "/Applications/macpaper.app" ]; then
         rm -rf "/Applications/macpaper.app"
     fi
@@ -160,10 +163,10 @@ exit 0
 
         let resourcesPath = "\(appPath)/Contents/Resources"
         let tempDir = NSTemporaryDirectory()
-        let updaterScript = "\(tempDir)moonleaf_updater_\(UUID().uuidString).sh"
+        let updaterScript = "\(tempDir)petalia_updater_\(UUID().uuidString).sh"
 
         let serverFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/share/macpaper/update_server")
+            .appendingPathComponent(".local/share/petalia/update_server")
         var serverArg = "https://github.com/parkuoa/moonleaf"
         if FileManager.default.fileExists(atPath: serverFile.path),
            let server = try? String(contentsOf: serverFile) {
@@ -213,7 +216,7 @@ exit 0
     private func show_reopen_prompt() {
         let alert = NSAlert()
         alert.messageText = "Update Completed"
-        alert.informativeText = "Update installed successfully. Restart moonleaf to use the new version."
+        alert.informativeText = "Update installed successfully. Restart Petalia to use the new version."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Restart")
         alert.addButton(withTitle: "Later")

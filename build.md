@@ -1,4 +1,4 @@
-# Building moonleaf from Source
+# Building Petalia from Source
 
 This project compiles directly from the command line using macOS developer tools (`swiftc` and `gcc`/`clang`). You do not need to open or configure Xcode to build the application.
 
@@ -42,7 +42,7 @@ To build a universal binary for both Intel (`x86_64`) and Apple Silicon (`arm64`
 
 The successfully built application will be stored at:
 ```
-build/moonleaf.app
+build/Petalia.app
 ```
 
 ---

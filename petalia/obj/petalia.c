@@ -10,12 +10,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#define PREFIX "/Applications/macpaper.app/Contents/MacOS"
+#define PREFIX "/Applications/petalia.app/Contents/MacOS"
 #define BUFFER_SIZE BUFSIZ
 #define ERR_PREFIX "error:"
 
 void p_usage(const char *cl) {
-  fprintf(stderr, "macpaper - The macOS Wallpaper Manager\n\
+  fprintf(stderr, "petalia - The macOS Wallpaper Manager\n\
 Usage: %s [ OPTION ] [ FILE ] ...\n\n\
 Options:\n\
     --set [ FILE ]          set FILE (.mov, .mp4, .gif) as wallpaper\n\
@@ -36,14 +36,14 @@ int n_la(const char *wp_img) {
 
   char launch_agent[BUFFER_SIZE];
   snprintf(launch_agent, sizeof(launch_agent),
-           "%s/Library/LaunchAgents/com.naomisphere.macpaper.wallpaper.plist",
+           "%s/Library/LaunchAgents/com.naomisphere.petalia.wallpaper.plist",
            home);
 
   FILE *agent_file = fopen(launch_agent, "w");
   if (!agent_file) {
     perror("Failed to create LaunchAgent plist");
     system("echo 'APP: failed to create LaunchAgent plist (wallpaper will not "
-           "persist)' >> /tmp/macpaper.log");
+           "persist)' >> /tmp/petalia.log");
     return 1;
   }
 
@@ -52,10 +52,10 @@ int n_la(const char *wp_img) {
   if (_NSGetExecutablePath(gwp_bin, &size) == 0) {
     char *dir = dirname(gwp_bin);
     snprintf(gwp_bin, sizeof(gwp_bin),
-             "%s/macpaper Wallpaper Service (glasswp)", dir);
+             "%s/petalia Wallpaper Service (glasswp)", dir);
   } else {
     snprintf(gwp_bin, sizeof(gwp_bin),
-             "/Applications/macpaper.app/Contents/MacOS/macpaper Wallpaper "
+             "/Applications/petalia.app/Contents/MacOS/petalia Wallpaper "
              "Service (glasswp)");
   }
 
@@ -66,7 +66,7 @@ int n_la(const char *wp_img) {
           "<plist version=\"1.0\">\n"
           "<dict>\n"
           "    <key>Label</key>\n"
-          "    <string>com.naomisphere.macpaper.wallpaper</string>\n"
+          "    <string>com.naomisphere.petalia.wallpaper</string>\n"
           "    <key>ProgramArguments</key>\n"
           "    <array>\n"
           "        <string>%s</string>\n"
@@ -77,9 +77,9 @@ int n_la(const char *wp_img) {
           "    <key>KeepAlive</key>\n"
           "    <false/>\n"
           "    <key>StandardOutPath</key>\n"
-          "    <string>/tmp/macpaper.log</string>\n"
+          "    <string>/tmp/petalia.log</string>\n"
           "    <key>StandardErrorPath</key>\n"
-          "    <string>/tmp/macpaper.log</string>\n"
+          "    <string>/tmp/petalia.log</string>\n"
           "</dict>\n"
           "</plist>",
           gwp_bin, wp_img);
@@ -92,8 +92,8 @@ int n_la(const char *wp_img) {
 
   printf("\nwallpaper will now start automatically on login.\n");
   printf("to disable this, run:\n");
-  printf("launchctl disable gui/$UID/com.naomisphere.macpaper.wallpaper\n");
-  printf("(to undo, enable again or re-run macpaper)\n");
+  printf("launchctl disable gui/$UID/com.naomisphere.petalia.wallpaper\n");
+  printf("(to undo, enable again or re-run petalia)\n");
   */
   return 0;
 }
@@ -102,7 +102,7 @@ int upa_off(const char *type) {
   char *home = getenv("HOME");
   char launch_agent[BUFFER_SIZE];
   snprintf(launch_agent, sizeof(launch_agent),
-           "%s/Library/LaunchAgents/com.naomisphere.macpaper.%s.plist", home,
+           "%s/Library/LaunchAgents/com.naomisphere.petalia.%s.plist", home,
            type);
 
   char lctl_unload[BUFFER_SIZE * 2];
@@ -122,7 +122,7 @@ int set_wp(const char *wp_img) {
   
 
   char _wp[BUFFER_SIZE];
-  snprintf(_wp, sizeof(_wp), "%s/.local/share/macpaper/current_wallpaper",
+  snprintf(_wp, sizeof(_wp), "%s/.local/share/petalia/current_wallpaper",
            home);
   FILE *wp_file = fopen(_wp, "w");
   if (wp_file) {
@@ -131,11 +131,11 @@ int set_wp(const char *wp_img) {
   }
 
   upa_off("wallpaper");
-  system("pkill -9 -f 'macpaper Wallpaper Service (glasswp)' 'glasswp' "
+  system("pkill -9 -f 'petalia Wallpaper Service (glasswp)' 'glasswp' "
          "'glasswp*' 2>/dev/null || true");
 
   char user_wp[BUFFER_SIZE];
-  snprintf(user_wp, sizeof(user_wp), "%s/macpaper Wallpaper Service (glasswp)",
+  snprintf(user_wp, sizeof(user_wp), "%s/petalia Wallpaper Service (glasswp)",
            PREFIX);
 
   char cmd[BUFFER_SIZE];
@@ -144,17 +144,17 @@ int set_wp(const char *wp_img) {
 
   
   
-  system("pkill -9 -f 'macpaper.*Wallpaper.*Service' 2>/dev/null || true");
+  system("pkill -9 -f 'petalia.*Wallpaper.*Service' 2>/dev/null || true");
   system("pkill -9 -f 'glasswp' 2>/dev/null || true");
 
   uint32_t size = sizeof(glasswp);
   if (_NSGetExecutablePath(glasswp, &size) == 0) {
     char *dir = dirname(glasswp);
     snprintf(glasswp, sizeof(glasswp),
-             "%s/macpaper Wallpaper Service (glasswp)", dir);
+             "%s/petalia Wallpaper Service (glasswp)", dir);
   } else {
     snprintf(glasswp, sizeof(glasswp),
-             "%s/macpaper Wallpaper Service (glasswp)", PREFIX);
+             "%s/petalia Wallpaper Service (glasswp)", PREFIX);
   }
 
   pid_t pid = fork();
@@ -166,7 +166,7 @@ int set_wp(const char *wp_img) {
     char _wp[BUFFER_SIZE];
     printf("wallpaper service started with PID %d\n", pid);
     printf("use --persist to create persistence launchagent\n");
-    snprintf(_wp, sizeof(_wp), "%s/.local/share/macpaper/current_wallpaper",
+    snprintf(_wp, sizeof(_wp), "%s/.local/share/petalia/current_wallpaper",
              home);
 
     FILE *file = fopen(_wp, "w");
@@ -197,11 +197,11 @@ int set_volume(const char *volume_str) {
   }
 
   char volume_file[BUFFER_SIZE];
-  snprintf(volume_file, sizeof(volume_file), "%s/.local/share/macpaper/volume",
+  snprintf(volume_file, sizeof(volume_file), "%s/.local/share/petalia/volume",
            home);
 
   char dir_cmd[BUFFER_SIZE];
-  snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p %s/.local/share/macpaper", home);
+  snprintf(dir_cmd, sizeof(dir_cmd), "mkdir -p %s/.local/share/petalia", home);
   system(dir_cmd);
 
   FILE *vol_file = fopen(volume_file, "w");
@@ -223,14 +223,14 @@ int unset_wp() {
   char _wp[BUFFER_SIZE];
   char cmd[BUFFER_SIZE];
 
-  system("pkill -f 'macpaper Wallpaper Service' 2>/dev/null || true");
-  snprintf(user_wp, sizeof(user_wp), "%s/macpaper Wallpaper Service (glasswp)",
+  system("pkill -f 'petalia Wallpaper Service' 2>/dev/null || true");
+  snprintf(user_wp, sizeof(user_wp), "%s/petalia Wallpaper Service (glasswp)",
            PREFIX);
   snprintf(cmd, sizeof(cmd), "pkill -f '%s' 2>/dev/null || true", user_wp);
   system(cmd);
 
   upa_off("wallpaper");
-  snprintf(_wp, sizeof(_wp), "%s/.local/share/macpaper/current_wallpaper",
+  snprintf(_wp, sizeof(_wp), "%s/.local/share/petalia/current_wallpaper",
            home);
   remove(_wp);
 
@@ -242,7 +242,7 @@ int disable_persistence_only() {
   char *home = getenv("HOME");
   char launch_agent[BUFFER_SIZE];
   snprintf(launch_agent, sizeof(launch_agent),
-           "%s/Library/LaunchAgents/com.naomisphere.macpaper.wallpaper.plist",
+           "%s/Library/LaunchAgents/com.naomisphere.petalia.wallpaper.plist",
            home);
 
   char lctl_unload[BUFFER_SIZE * 2];
@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
     char *home = getenv("HOME");
     char current_wp[BUFFER_SIZE];
     char _wp[BUFFER_SIZE];
-    snprintf(_wp, sizeof(_wp), "%s/.local/share/macpaper/current_wallpaper",
+    snprintf(_wp, sizeof(_wp), "%s/.local/share/petalia/current_wallpaper",
              home);
     FILE *wp_file = fopen(_wp, "r");
     if (wp_file && fgets(current_wp, sizeof(current_wp), wp_file)) {

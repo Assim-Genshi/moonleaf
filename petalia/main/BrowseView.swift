@@ -1,6 +1,6 @@
 //
 //  BrowseView.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -237,7 +237,7 @@ struct BrowseView: View {
     }
     
     private func loadPexelsAPIKey() {
-        let configDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/moonleaf")
+        let configDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/petalia")
         let keyFile = configDir.appendingPathComponent("pexels_api_key.txt")
         
         do {
@@ -249,7 +249,7 @@ struct BrowseView: View {
     }
     
     private func savePexelsAPIKey(_ key: String) {
-        let configDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/moonleaf")
+        let configDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/petalia")
         let keyFile = configDir.appendingPathComponent("pexels_api_key.txt")
         
         do {

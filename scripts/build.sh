@@ -2,13 +2,13 @@
 set -eo pipefail
 
 BUILD_DIR="build"
-APP_BUNDLE="$BUILD_DIR/moonleaf.app"
+APP_BUNDLE="$BUILD_DIR/Petalia.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RSC_DIR="$CONTENTS_DIR/Resources"
 BIN_DIR="$RSC_DIR/bin"
 SAVER_BUILD_DIR="${BUILD_DIR}/saver"
-SAVER_DIR="${SAVER_BUILD_DIR}/moonleafSaver.saver"
+SAVER_DIR="${SAVER_BUILD_DIR}/PetaliaSaver.saver"
 CACHE_DIR=".build-cache"
 
 MP_VER_STRING="v4.0.0"
@@ -26,7 +26,7 @@ done
 
 if [[ "$BUILD_ALL" == true ]]; then
     echo ""
-    read -p "do you really want to build moonleaf for arm64 and x86_64? it will take longer. (y/N): " -n 1 -r
+    read -p "do you really want to build Petalia for arm64 and x86_64? it will take longer. (y/N): " -n 1 -r
     echo ""
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "cancelled..."
@@ -179,42 +179,42 @@ echo -e "
         \033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;60m=\033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m
         \033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;60m-\033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m\033[38;5;0m \033[0m"
 echo "####################################################"
-echo "        building moonleaf ${MP_VER_STRING} to ${BUILD_DIR}"
+echo "        building Petalia ${MP_VER_STRING} to ${BUILD_DIR}"
 echo "####################################################"
 echo "macOS $(sw_vers -productVersion), arch: $HOST_ARCH"
 
 # -----------------------------------------------
-# moonleaf (Swift, incremental)
+# Petalia (Swift, incremental)
 # -----------------------------------------------
 echo ""
-echo "-- moonleaf --"
+echo "-- Petalia --"
 
-MOONLEAF_SOURCES=(moonleaf/main/*.swift moonleaf/utils/*.swift)
-MOONLEAF_FRAMEWORKS=(SwiftUI AppKit AVKit AVFoundation UniformTypeIdentifiers Combine)
+PETALIA_SOURCES=(petalia/main/*.swift petalia/utils/*.swift)
+PETALIA_FRAMEWORKS=(SwiftUI AppKit AVKit AVFoundation UniformTypeIdentifiers Combine)
 
 if [[ "$BUILD_ALL" == true ]]; then
-    swift_build "x86_64-apple-macos13.0" "$CACHE_DIR/moonleaf-amd64" "moonleaf" \
+    swift_build "x86_64-apple-macos13.0" "$CACHE_DIR/petalia-amd64" "petalia" \
         "$MACOS_DIR/macpaper_amd64" \
-        "${MOONLEAF_FRAMEWORKS[@]}" -- "${MOONLEAF_SOURCES[@]}"
-    echo "compiled moonleaf (amd64) (1/3)"
+        "${PETALIA_FRAMEWORKS[@]}" -- "${PETALIA_SOURCES[@]}"
+    echo "compiled Petalia (amd64) (1/3)"
 
-    swift_build "arm64-apple-macos13.0" "$CACHE_DIR/moonleaf-arm64" "moonleaf" \
+    swift_build "arm64-apple-macos13.0" "$CACHE_DIR/petalia-arm64" "petalia" \
         "$MACOS_DIR/macpaper_arm64" \
-        "${MOONLEAF_FRAMEWORKS[@]}" -- "${MOONLEAF_SOURCES[@]}"
-    echo "compiled moonleaf (arm64) (2/3)"
+        "${PETALIA_FRAMEWORKS[@]}" -- "${PETALIA_SOURCES[@]}"
+    echo "compiled Petalia (arm64) (2/3)"
 
     lipo -create \
         "$MACOS_DIR/macpaper_amd64" \
         "$MACOS_DIR/macpaper_arm64" \
-        -o "$MACOS_DIR/moonleaf"
+        -o "$MACOS_DIR/petalia"
 
-    echo "compiled moonleaf (universal) (3/3)"
+    echo "compiled Petalia (universal) (3/3)"
     rm "$MACOS_DIR/macpaper_amd64" "$MACOS_DIR/macpaper_arm64"
 else
-    swift_build "$HOST_TARGET" "$CACHE_DIR/moonleaf-$HOST_ARCH" "moonleaf" \
-        "$MACOS_DIR/moonleaf" \
-        "${MOONLEAF_FRAMEWORKS[@]}" -- "${MOONLEAF_SOURCES[@]}"
-    echo "compiled moonleaf ($HOST_ARCH)"
+    swift_build "$HOST_TARGET" "$CACHE_DIR/petalia-$HOST_ARCH" "petalia" \
+        "$MACOS_DIR/petalia" \
+        "${PETALIA_FRAMEWORKS[@]}" -- "${PETALIA_SOURCES[@]}"
+    echo "compiled Petalia ($HOST_ARCH)"
 fi
 echo ""
 
@@ -222,7 +222,7 @@ echo ""
 # glasswp (Swift, incremental)
 # -----------------------------------------------
 echo ""
-echo "-- moonleaf Animated Wallpaper Engine (glasswp) --"
+echo "-- Petalia Animated Wallpaper Engine (glasswp) --"
 
 GLASSWP_SOURCES=(glasswp/glasswp.swift)
 GLASSWP_FRAMEWORKS=(AppKit AVFoundation MediaToolbox Accelerate)
@@ -252,55 +252,55 @@ fi
 echo ""
 
 # -----------------------------------------------
-# moonleaf-bin (C, single file — no incremental needed)
+# petalia-bin (C, single file — no incremental needed)
 # -----------------------------------------------
-echo "-- moonleaf-bin --"
+echo "-- petalia-bin --"
 
 if [[ "$BUILD_ALL" == true ]]; then
     gcc -target x86_64-apple-macos13.0 \
-        moonleaf/obj/moonleaf.c -o "$MACOS_DIR/moonleaf-bin_amd64"
+        petalia/obj/petalia.c -o "$MACOS_DIR/petalia-bin_amd64"
 
     gcc -target arm64-apple-macos13.0 \
-        moonleaf/obj/moonleaf.c -o "$MACOS_DIR/moonleaf-bin_arm64"
+        petalia/obj/petalia.c -o "$MACOS_DIR/petalia-bin_arm64"
 
-    lipo -create "$MACOS_DIR/moonleaf-bin_amd64" "$MACOS_DIR/moonleaf-bin_arm64" \
-        -o "$MACOS_DIR/moonleaf-bin"
+    lipo -create "$MACOS_DIR/petalia-bin_amd64" "$MACOS_DIR/petalia-bin_arm64" \
+        -o "$MACOS_DIR/petalia-bin"
 
-    echo "compiled moonleaf-bin (universal)"
-    rm "$MACOS_DIR/moonleaf-bin_amd64" "$MACOS_DIR/moonleaf-bin_arm64"
+    echo "compiled petalia-bin (universal)"
+    rm "$MACOS_DIR/petalia-bin_amd64" "$MACOS_DIR/petalia-bin_arm64"
 else
     gcc -target "$HOST_TARGET" \
-        moonleaf/obj/moonleaf.c -o "$MACOS_DIR/moonleaf-bin"
+        petalia/obj/petalia.c -o "$MACOS_DIR/petalia-bin"
 
-    echo "compiled moonleaf-bin ($HOST_ARCH)"
+    echo "compiled petalia-bin ($HOST_ARCH)"
 fi
 echo ""
 
 # -----------------------------------------------
 # bundle app resources
 # -----------------------------------------------
-echo "adding moonleaf Info.plist"
+echo "adding petalia Info.plist"
 cat > "$CONTENTS_DIR/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>moonleaf</string>
+    <string>petalia</string>
     <key>CFBundleIdentifier</key>
-    <string>com.naomisphere.macpaper</string>
+    <string>com.naomisphere.petalia</string>
     <key>CFBundleName</key>
-    <string>moonleaf</string>
+    <string>Petalia</string>
     <key>CFBundleDisplayName</key>
-    <string>moonleaf</string>
+    <string>Petalia</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>${MP_VER_SHORT_STRING}</string>
+    <string>\${MP_VER_SHORT_STRING}</string>
     <key>CFBundleVersion</key>
-    <string>${MP_VER_STRING}</string>
+    <string>\${MP_VER_STRING}</string>
     <key>CFBundleIconFile</key>
-    <string>moonleaf.icns</string>
+    <string>Petalia.icns</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -319,23 +319,23 @@ EOF
 
 echo ""
 echo "-- bundling app resources --"
-cp artwork/icns/moonleaf/moonleaf.icns "$RSC_DIR" 2>/dev/null || true
-cp artwork/png/moonleaf.png "${RSC_DIR}/.moonleaf_logo.png" 2>/dev/null || true
-cp artwork/png/moonleaf.png "${RSC_DIR}/StatusBarIcon.png" 2>/dev/null || true
+cp artwork/icns/Petalia/Petalia.icns "$RSC_DIR" 2>/dev/null || true
+cp artwork/png/petalia.png "${RSC_DIR}/.petalia_logo.png" 2>/dev/null || true
+cp artwork/png/petalia.png "${RSC_DIR}/StatusBarIcon.png" 2>/dev/null || true
 cp img/png/kofi_symbol.png "$RSC_DIR/.kofi.png" 2>/dev/null || true
 
-gzip -dc moonleaf/resources/bin/wallpaper.gz > "moonleaf/resources/bin/wallpaper" 2>/dev/null
-chmod +x "moonleaf/resources/bin/wallpaper" 2>/dev/null || true
-cp -R moonleaf/resources/* "$RSC_DIR/" 2>/dev/null || true
+gzip -dc petalia/resources/bin/wallpaper.gz > "petalia/resources/bin/wallpaper" 2>/dev/null
+chmod +x "petalia/resources/bin/wallpaper" 2>/dev/null || true
+cp -R petalia/resources/* "$RSC_DIR/" 2>/dev/null || true
 rm -f "$RSC_DIR/bin/wallpaper.gz" 2>/dev/null
 chmod +x "$BIN_DIR/wallpaper" 2>/dev/null || true
 
 echo "adding localization strings"
 cp -r lang/*.lproj "$RSC_DIR"
 
-if [[ -d "moonleaf/Assets.xcassets" ]]; then
+if [[ -d "petalia/Assets.xcassets" ]]; then
     echo "compiling asset catalog..."
-    actool moonleaf/Assets.xcassets \
+    actool petalia/Assets.xcassets \
         --compile "$RSC_DIR" \
         --platform macosx \
         --minimum-deployment-target 13.0 \
@@ -344,6 +344,6 @@ fi
 
 
 echo ""
-echo "done! moonleaf ${MP_VER_STRING} is at ${BUILD_DIR}/moonleaf.app"
+echo "done! Petalia ${MP_VER_STRING} is at ${BUILD_DIR}/Petalia.app"
 echo "glasswp installed to: $BIN_DIR/glasswp"
 echo ""

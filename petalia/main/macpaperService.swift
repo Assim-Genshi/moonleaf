@@ -1,6 +1,6 @@
 //
 //  macpaperService.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -22,7 +22,7 @@ class macpaperService: NSObject, ObservableObject {
     @Published var isLoading = false
     @Published var current_wp: String? {
         didSet {
-            UserDefaults.standard.set(current_wp, forKey: "moonleaf_current_wp")
+            UserDefaults.standard.set(current_wp, forKey: "petalia_current_wp")
         }
     }
     @Published var volume: Double = 0.5
@@ -58,11 +58,11 @@ class macpaperService: NSObject, ObservableObject {
     private let wp_storage_dir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".local/share/paper/wallpaper")
     private let settings_file = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/moonleaf/settings.json")
+        .appendingPathComponent(".config/petalia/settings.json")
     private let export_folder_file = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/moonleaf/export_folder")
+        .appendingPathComponent(".config/petalia/export_folder")
     private let screen_wallpapers_file = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/moonleaf/screen_wallpapers.json")
+        .appendingPathComponent(".config/petalia/screen_wallpapers.json")
     private var shuffleTimer: DispatchSourceTimer?
 
     enum LocalSortMode: String, CaseIterable {
@@ -109,12 +109,32 @@ class macpaperService: NSObject, ObservableObject {
         case link = "link"
     }
 
+    private func migrateUserDefaultsIfNeeded() {
+        let keysToMigrate = [
+            "moonleaf_favorites": "petalia_favorites",
+            "moonleaf_localSort": "petalia_localSort",
+            "moonleaf_shuffleEnabled": "petalia_shuffleEnabled",
+            "moonleaf_shuffleInterval": "petalia_shuffleInterval",
+            "moonleaf_current_wp": "petalia_current_wp"
+        ]
+        
+        let defaults = UserDefaults.standard
+        for (oldKey, newKey) in keysToMigrate {
+            if defaults.object(forKey: newKey) == nil {
+                if let oldVal = defaults.object(forKey: oldKey) {
+                    defaults.set(oldVal, forKey: newKey)
+                }
+            }
+        }
+    }
+
     override init() {
         let app_path = Bundle.main.bundlePath
-        wrapped_obj = "\(app_path)/Contents/MacOS/moonleaf-bin"
+        wrapped_obj = "\(app_path)/Contents/MacOS/petalia-bin"
         wallpaper_cli = "\(app_path)/Contents/Resources/bin/wallpaper"
         glasswp_path = "\(app_path)/Contents/Resources/bin/glasswp"
         super.init()
+        migrateUserDefaultsIfNeeded()
         syncConfigs()
         loadSettings()
         loadVolume()
@@ -157,7 +177,7 @@ class macpaperService: NSObject, ObservableObject {
     }
 
     private func loadFavorites() {
-        if let data = UserDefaults.standard.data(forKey: "moonleaf_favorites"),
+        if let data = UserDefaults.standard.data(forKey: "petalia_favorites"),
            let paths = try? JSONDecoder().decode([String].self, from: data) {
             favorites = Set(paths)
         }
@@ -165,13 +185,13 @@ class macpaperService: NSObject, ObservableObject {
 
     private func saveFavorites() {
         if let data = try? JSONEncoder().encode(Array(favorites)) {
-            UserDefaults.standard.set(data, forKey: "moonleaf_favorites")
+            UserDefaults.standard.set(data, forKey: "petalia_favorites")
         }
     }
 
     func setLocalSort(_ mode: LocalSortMode) {
         localSort = mode
-        UserDefaults.standard.set(mode.rawValue, forKey: "moonleaf_localSort")
+        UserDefaults.standard.set(mode.rawValue, forKey: "petalia_localSort")
         applyLocalSort()
     }
 
@@ -188,7 +208,7 @@ class macpaperService: NSObject, ObservableObject {
 
     func setShuffleEnabled(_ enabled: Bool) {
         shuffleEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: "moonleaf_shuffleEnabled")
+        UserDefaults.standard.set(enabled, forKey: "petalia_shuffleEnabled")
         if enabled {
             startShuffleTimer()
         } else {
@@ -199,7 +219,7 @@ class macpaperService: NSObject, ObservableObject {
 
     func setShuffleInterval(_ interval: ShuffleInterval) {
         shuffleInterval = interval
-        UserDefaults.standard.set(interval.rawValue, forKey: "moonleaf_shuffleInterval")
+        UserDefaults.standard.set(interval.rawValue, forKey: "petalia_shuffleInterval")
         if shuffleEnabled {
             startShuffleTimer()
         }
@@ -229,7 +249,7 @@ class macpaperService: NSObject, ObservableObject {
         saveSettings()
 
         DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.naomisphere.moonleaf.autoPauseChanged"),
+            Notification.Name("com.naomisphere.petalia.autoPauseChanged"),
             object: nil,
             userInfo: ["ap_is_enabled": enabled],
             deliverImmediately: true
@@ -255,26 +275,26 @@ class macpaperService: NSObject, ObservableObject {
 
         loadFavorites()
 
-        if let sortRaw = UserDefaults.standard.string(forKey: "moonleaf_localSort"),
+        if let sortRaw = UserDefaults.standard.string(forKey: "petalia_localSort"),
            let sort = LocalSortMode(rawValue: sortRaw) {
             localSort = sort
         }
 
-        shuffleEnabled = UserDefaults.standard.bool(forKey: "moonleaf_shuffleEnabled")
+        shuffleEnabled = UserDefaults.standard.bool(forKey: "petalia_shuffleEnabled")
 
-        if let intervalRaw = UserDefaults.standard.string(forKey: "moonleaf_shuffleInterval"),
+        if let intervalRaw = UserDefaults.standard.string(forKey: "petalia_shuffleInterval"),
            let interval = ShuffleInterval(rawValue: intervalRaw) {
             shuffleInterval = interval
         }
 
-        if let savedWp = UserDefaults.standard.string(forKey: "moonleaf_current_wp") {
+        if let savedWp = UserDefaults.standard.string(forKey: "petalia_current_wp") {
             current_wp = savedWp
         }
     }
 
     private func loadVolume() {
         let volFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/moonleaf/volume")
+            .appendingPathComponent(".config/petalia/volume")
         if let data = try? Data(contentsOf: volFile),
            let str = String(data: data, encoding: .utf8),
            let intVal = Int(str.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -304,7 +324,7 @@ class macpaperService: NSObject, ObservableObject {
 
         
         DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.naomisphere.moonleaf.volumeChanged"),
+            Notification.Name("com.naomisphere.petalia.volumeChanged"),
             object: nil,
             userInfo: ["volume": volumeFloat],
             deliverImmediately: true
@@ -313,7 +333,7 @@ class macpaperService: NSObject, ObservableObject {
         
         let vol_in_percentage = Int(new_vol * 100)
         let volFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/moonleaf/volume")
+            .appendingPathComponent(".config/petalia/volume")
         try? "\(vol_in_percentage)".write(to: volFile, atomically: true, encoding: .utf8)
     }
 
@@ -448,7 +468,7 @@ class macpaperService: NSObject, ObservableObject {
 
     private func postOverlayNotification(path: String) {
         DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
+            Notification.Name("com.naomisphere.petalia.changeWallpaper"),
             object: nil,
             userInfo: ["filePath": path],
             deliverImmediately: true
@@ -474,7 +494,7 @@ class macpaperService: NSObject, ObservableObject {
 
         
         DistributedNotificationCenter.default().postNotificationName(
-            Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
+            Notification.Name("com.naomisphere.petalia.changeWallpaper"),
             object: nil,
             userInfo: ["filePath": wallpaper.path, "screenIndex": screenIndex],
             deliverImmediately: true
@@ -654,19 +674,28 @@ class macpaperService: NSObject, ObservableObject {
     private func syncConfigs() {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let legacyDir = home.appendingPathComponent(".local/share/macpaper")
-        let newDir = home.appendingPathComponent(".config/moonleaf")
+        let moonleafDir = home.appendingPathComponent(".config/moonleaf")
+        let petaliaDir = home.appendingPathComponent(".config/petalia")
         
-        guard FileManager.default.fileExists(atPath: legacyDir.path) else { return }
-        try? FileManager.default.createDirectory(at: newDir, withIntermediateDirectories: true)
-        
-        if let files = try? FileManager.default.contentsOfDirectory(at: legacyDir, includingPropertiesForKeys: nil) {
-            for file in files {
-                let dest = newDir.appendingPathComponent(file.lastPathComponent)
-                if !FileManager.default.fileExists(atPath: dest.path) {
-                    try? FileManager.default.createSymbolicLink(at: dest, withDestinationURL: file)
+        let fm = FileManager.default
+
+        if !fm.fileExists(atPath: petaliaDir.path) {
+            if fm.fileExists(atPath: moonleafDir.path) {
+                try? fm.copyItem(at: moonleafDir, to: petaliaDir)
+            } else if fm.fileExists(atPath: legacyDir.path) {
+                try? fm.createDirectory(at: petaliaDir, withIntermediateDirectories: true)
+                if let files = try? fm.contentsOfDirectory(at: legacyDir, includingPropertiesForKeys: nil) {
+                    for file in files {
+                        let dest = petaliaDir.appendingPathComponent(file.lastPathComponent)
+                        if !fm.fileExists(atPath: dest.path) {
+                            try? fm.createSymbolicLink(at: dest, withDestinationURL: file)
+                        }
+                    }
                 }
             }
         }
+
+        try? fm.createDirectory(at: petaliaDir, withIntermediateDirectories: true)
     }
 
     
@@ -705,7 +734,7 @@ class macpaperService: NSObject, ObservableObject {
             for (idx, path) in loaded {
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 DistributedNotificationCenter.default().postNotificationName(
-                    Notification.Name("com.naomisphere.moonleaf.changeWallpaper"),
+                    Notification.Name("com.naomisphere.petalia.changeWallpaper"),
                     object: nil,
                     userInfo: ["filePath": path, "screenIndex": idx],
                     deliverImmediately: true

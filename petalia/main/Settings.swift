@@ -1,6 +1,6 @@
 //
 //  Settings.swift
-//  moonleaf
+//  petalia
 //
 //  Copyright © 2026 naomisphere. All rights reserved.
 //
@@ -686,7 +686,7 @@ struct SettingsView: View {
 
     private func loadVisualizerSettings() {
         let settingsFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/moonleaf/settings.json")
+            .appendingPathComponent(".config/petalia/settings.json")
 
         guard FileManager.default.fileExists(atPath: settingsFile.path),
               let data = try? Data(contentsOf: settingsFile),
@@ -705,7 +705,7 @@ struct SettingsView: View {
 
     private func saveVisualizerSettings() {
         let settingsFile = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/moonleaf/settings.json")
+            .appendingPathComponent(".config/petalia/settings.json")
 
         var settings: [String: Any] = [:]
         if FileManager.default.fileExists(atPath: settingsFile.path),
@@ -731,7 +731,7 @@ struct SettingsView: View {
             try? data.write(to: settingsFile)
 
             DistributedNotificationCenter.default().postNotificationName(
-                Notification.Name("com.naomisphere.moonleaf.visualizerSettingsChanged"),
+                Notification.Name("com.naomisphere.petalia.visualizerSettingsChanged"),
                 object: nil,
                 deliverImmediately: true
             )
